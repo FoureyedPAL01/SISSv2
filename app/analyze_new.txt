@@ -1,0 +1,12 @@
+Analyzing app...                                                
+
+warning - Unused import: 'package:supabase_flutter/supabase_flutter.dart' - lib\config\supabase_config.dart:1:8 - unused_import
+   info - Statements in an if should be enclosed in a block - lib\router.dart:80:26 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\router.dart:81:50 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\router.dart:82:44 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\router.dart:83:47 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\router.dart:84:48 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\irrigation_screen.dart:64:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\water_usage_screen.dart:69:50 - deprecated_member_use
+
+8 issues found. (ran in 16.4s)

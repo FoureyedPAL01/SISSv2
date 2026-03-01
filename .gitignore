@@ -1,0 +1,30 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Flutter / Dart
+.dart_tool/
+.build/
+flutter_build/
+.pub/
+.pub-cache/
+.packages
+
+# Android / iOS
+android/.gradle/
+android/local.properties
+ios/Pods/
+ios/.symlinks/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+.env
+.env.*
