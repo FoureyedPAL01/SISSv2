@@ -5,6 +5,7 @@ __pycache__/
 
 # Flutter / Dart
 .dart_tool/
+build/
 .build/
 flutter_build/
 .pub/
@@ -16,6 +17,24 @@ android/.gradle/
 android/local.properties
 ios/Pods/
 ios/.symlinks/
+
+# Android / Gradle
+android/.gradle/
+android/local.properties
+**/build/
+.gradle/
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+**/DerivedData/
+
+# Generated & binary
+*.apk
+*.aab
+*.dex
+*.so
+*.jar
 
 # IDE
 .vscode/
