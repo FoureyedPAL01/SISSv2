@@ -30,20 +30,25 @@ def on_message(client, userdata, msg):
     print(f"Received message on topic {msg.topic}")
     try:
         payload = json.loads(msg.payload.decode("utf-8"))
+        print(f"[DEBUG] Raw payload: {payload}")
         
         # Validate data using Pydantic
         sensor_data = SensorData(**payload)
+        print(f"[DEBUG] Parsed sensor_data: {sensor_data}")
         
         # Insert into Supabase
         # RLS bypass relies on the SERVICE_ROLE_KEY used in main.supabase initialization
-        data, count = supabase.table("sensor_readings").insert({
+        insert_data = {
             "device_id": sensor_data.device_id,
             "soil_moisture": sensor_data.soil_pct,
             "temperature_c": sensor_data.temp_c,
             "humidity": sensor_data.humidity,
             "rain_detected": sensor_data.rain,
             "flow_litres": sensor_data.flow_litres
-        }).execute()
+        }
+        print(f"[DEBUG] Inserting: {insert_data}")
+        
+        res = supabase.table("sensor_readings").insert(insert_data).execute()
         
         print(f"Successfully inserted reading for {sensor_data.device_id}")
 

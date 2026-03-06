@@ -12,9 +12,9 @@ async def run_fault_checks():
         
         # In Supabase, you'd typically query the last reading per device
         # For simplicity in this demo, we assume there's a view or we check the latest reading per device
-        res, count = supabase.table("devices").select("id, last_seen").execute()
-        if res and res[1]:
-            for device in res[1]:
+        res = supabase.table("devices").select("id, last_seen").execute()
+        if res and res.data:
+            for device in res.data:
                 last_seen_str = device.get("last_seen")
                 if not last_seen_str:
                     continue

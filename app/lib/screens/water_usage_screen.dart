@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class WaterUsageScreen extends StatelessWidget {
   const WaterUsageScreen({super.key});
@@ -22,11 +22,14 @@ class WaterUsageScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          Text("Water Usage", style: Theme.of(context).textTheme.headlineMedium),
+          Text("Water Usage", style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontFamily: 'Bungee',
+            fontSize: 24,
+          )),
           const SizedBox(height: 8),
-          const Text("Estimated Litres used over the last 7 days based on pump logs."),
+          Text("Estimated Litres used over the last 7 days based on pump logs.", style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 24),
-          
+
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -35,9 +38,9 @@ class WaterUsageScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Row(
+                      Row(
                         children: [
-                          Icon(LucideIcons.barChart2, color: Colors.blue),
+                          Icon(PhosphorIcons.chartBar(), color: Colors.blue),
                           SizedBox(width: 8),
                           Text("Weekly Trend"),
                         ],
@@ -82,3 +85,5 @@ class WaterUsageScreen extends StatelessWidget {
     );
   }
 }
+
+

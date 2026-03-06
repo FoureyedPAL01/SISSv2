@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../providers/app_state_provider.dart';
 
 class CropProfilesScreen extends StatefulWidget {
@@ -26,14 +26,14 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
           .select('*, crop_profiles(*)')
           .eq('id', deviceId)
           .single();
-          
+
       if (res['crop_profiles'] != null && mounted) {
         setState(() {
           _dryThreshold = (res['crop_profiles']['min_moisture'] as num).toDouble();
         });
       }
     } catch (e) {
-      debugPrint("Could not fetch crop profile: \$e");
+      debugPrint("Could not fetch crop profile: $e");
     }
   }
 
@@ -48,7 +48,7 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
   Future<void> _saveSettings() async {
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
-    
+
     setState(() => _isSaving = true);
     final deviceId = context.read<AppStateProvider>().deviceId;
     final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -64,7 +64,7 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
           })
           .select()
           .single();
-          
+
       // 2. Link the device to this crop profile
       if (deviceId != null) {
         await Supabase.instance.client
@@ -73,9 +73,27 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
             .eq('id', deviceId);
       }
 
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Settings saved successfully.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Settings saved successfully.'),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(20),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: \$e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving: $e'),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(20),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -89,11 +107,17 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            Text("Crop Thresholds", style: Theme.of(context).textTheme.headlineMedium),
+            Text("Crop Thresholds", style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontFamily: 'Bungee',
+              fontSize: 24,
+            )),
             const SizedBox(height: 8),
-            const Text("Adjust the minimum soil moisture level. If moisture falls below this percentage, the automated script will turn your pump on."),
+            Text(
+              "Adjust the minimum soil moisture level. If moisture falls below this percentage, the automated script will turn your pump on.",
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 24),
-            
+
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -102,7 +126,7 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
                   children: [
                     Row(
                       children: [
-                        const Icon(LucideIcons.sprout, color: Colors.green),
+                        Icon(PhosphorIcons.plant(), color: Colors.green),
                         const SizedBox(width: 8),
                         Text("Dry Threshold (%)", style: Theme.of(context).textTheme.titleLarge),
                       ],
@@ -113,19 +137,19 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
                       min: 0,
                       max: 100,
                       divisions: 20,
-                      label: "\${_dryThreshold.round()}%",
+                      label: "${_dryThreshold.round()}%",
                       activeColor: Colors.brown.shade400,
                       onChanged: (val) => setState(() => _dryThreshold = val),
                     ),
                     Center(
-                      child: Text("\${_dryThreshold.round()}%", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                      child: Text("${_dryThreshold.round()}%", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 24),
-            ElevatedButton(
+            FilledButton(
               onPressed: _isSaving ? null : _saveSettings,
               child: _isSaving ? const CircularProgressIndicator(color: Colors.white) : const Text("Save Crop Parameters"),
             )

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class FertigationScreen extends StatelessWidget {
   const FertigationScreen({super.key});
@@ -10,11 +10,14 @@ class FertigationScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          Text("Fertigation Management", style: Theme.of(context).textTheme.headlineMedium),
+          Text("Fertigation Management", style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontFamily: 'Bungee',
+            fontSize: 24,
+          )),
           const SizedBox(height: 8),
-          const Text("Track nutrient application schedules alongside your irrigation."),
+          Text("Track nutrient application schedules alongside your irrigation.", style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 24),
-          
+
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -25,7 +28,7 @@ class FertigationScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          const Icon(LucideIcons.flaskConical, color: Colors.purple),
+                          Icon(PhosphorIcons.flask(), color: Colors.purple),
                           const SizedBox(width: 8),
                           Text("Nutrition Status", style: Theme.of(context).textTheme.titleLarge),
                         ],
@@ -49,16 +52,21 @@ class FertigationScreen extends StatelessWidget {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 24),
-          ElevatedButton.icon(
+          FilledButton.icon(
             onPressed: () {},
-            icon: const Icon(LucideIcons.plus),
+            icon: Icon(PhosphorIcons.plus()),
             label: const Text("Log Fertilizer Application"),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+            style: FilledButton.styleFrom(
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+            ),
           )
         ],
       )
     );
   }
 }
+
+

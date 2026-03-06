@@ -2,8 +2,7 @@ name: app
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
-
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
 # followed by an optional build number separated by a +.
@@ -39,8 +38,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^1.6.0
   go_router: ^17.1.0
-  lucide_icons: ^0.257.0
+  phosphor_flutter: ^2.1.0
   flutter_dotenv: ^6.0.0
+  google_fonts: ^8.0.2
 
 dev_dependencies:
   flutter_test:
@@ -58,12 +58,32 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
-
+  assets:
+    - .env
+    - assets/fonts/
+  fonts:
+    - family: EBGaramond
+      fonts:
+        - asset: assets/fonts/EBGaramond-VariableFont_wght.ttf
+    - family: Bungee
+      fonts:
+        - asset: assets/fonts/Bungee-Regular.ttf
+    - family: Merriweather
+      fonts:
+        - asset: assets/fonts/Merriweather-VariableFont_opsz,wdth,wght.ttf
+    - family: BungeeInline
+      fonts:
+        - asset: assets/fonts/BungeeInline-Regular.ttf
+    - family: Quicksand
+      fonts:
+        - asset: assets/fonts/Quicksand-VariableFont_wght.ttf
+    - family: SpecialElite
+      fonts:
+        - asset: assets/fonts/SpecialElite-Regular.ttf
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

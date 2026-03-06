@@ -6,19 +6,17 @@
 #define CONFIG_H
 
 // ─── WiFi ────────────────────────────────────────────────────────────────────
-#define WIFI_SSID   "your_wifi_name"
-#define WIFI_PASS   "your_wifi_password"
+#define WIFI_SSID   "RTP #4"
+#define WIFI_PASS   "$avine597"
 
 // ─── MQTT Broker ─────────────────────────────────────────────────────────────
 // Use your PC's local IP if running Mosquitto locally (e.g. 192.168.1.10)
-// Use HiveMQ Cloud hostname if using cloud broker
-#define MQTT_BROKER "192.168.1.10"
+#define MQTT_BROKER "192.168.0.104"
 #define MQTT_PORT   1883
-#define MQTT_USER   ""   // leave blank if broker has no auth
+#define MQTT_USER   ""
 #define MQTT_PASS   ""
 
 // ─── Device Identity ─────────────────────────────────────────────────────────
-// Change this per physical device if you deploy multiple ESP32s
 #define DEVICE_ID   "esp32_01"
 
 // ─── MQTT Topics ─────────────────────────────────────────────────────────────
@@ -26,42 +24,40 @@
 #define TOPIC_CONTROL  "devices/" DEVICE_ID "/control"
 
 // ─── GPIO Pins ───────────────────────────────────────────────────────────────
-#define PIN_SOIL        34   // Analog input:    soil moisture sensor AO pin
-#define PIN_DHT         4    // Digital input:   DHT11 data pin
-#define PIN_RAIN        35   // Digital input:   rain sensor DO pin
-#define PIN_FLOW        18   // Digital input:   YF-S201 flow sensor pulse pin
-#define PIN_PUMP_RELAY  26   // Digital output:  relay module IN pin
+// Verified against ESP32 DOIT DevKit V1 30-pin diagram
+// USB at bottom, pin 1 = bottom, pin 15 = top
+#define PIN_SOIL        34   // Analog input:   soil moisture AOUT — left side pin 12
+#define PIN_DHT          4   // Digital input:  DHT11 DATA       — right side pin 5
+#define PIN_RAIN        35   // Digital input:  rain sensor DO   — left side pin 11
+#define PIN_FLOW        18   // Digital input:  YF-S201 signal   — right side pin 9
+#define PIN_PUMP_RELAY  26   // Digital output: MOSFET/relay IN  — left side pin 7
 
-// ─── Relay Polarity ──────────────────────────────────────────────────────────
-// HOW TO TEST: Upload firmware, open Serial Monitor.
-// Run: mosquitto_pub -t "devices/esp32_01/control" -m '{"cmd":"pump_on"}'
-// If pump turns OFF  → your relay is active-LOW → set true
-// If pump turns ON   → your relay is active-HIGH → set false
-#define RELAY_ACTIVE_LOW  false   // change to true if pump logic is inverted
+// ─── Pump Switch Polarity ────────────────────────────────────────────────────
+// IRF520 MOSFET: active-HIGH → HIGH turns pump ON  → RELAY_ACTIVE_LOW false
+// Relay module:  active-LOW  → LOW  turns pump ON  → RELAY_ACTIVE_LOW true
+// Set according to whichever module you are using
+#define RELAY_ACTIVE_LOW  false   // false = MOSFET | true = relay
 
-// Helper macros — use PUMP_ON / PUMP_OFF everywhere instead of HIGH/LOW directly
 #define PUMP_ON   (RELAY_ACTIVE_LOW ? LOW  : HIGH)
 #define PUMP_OFF  (RELAY_ACTIVE_LOW ? HIGH : LOW)
 
 // ─── Soil Moisture Calibration ───────────────────────────────────────────────
-// Read raw ADC values in Serial Monitor:
-//   DRY_RAW  = value when sensor is in open air (completely dry)
-//   WET_RAW  = value when sensor is submerged in water
-// Then set these accordingly.
-#define SOIL_DRY_RAW  3200   // typical dry value  (adjust after calibration)
-#define SOIL_WET_RAW  1200   // typical wet value  (adjust after calibration)
+// Step 1: hold sensor in open air → note Serial Monitor raw value → SOIL_DRY_RAW
+// Step 2: dip sensor tip in water → note Serial Monitor raw value → SOIL_WET_RAW
+#define SOIL_DRY_RAW  3200   // replace with your calibrated dry reading
+#define SOIL_WET_RAW  1200   // replace with your calibrated wet reading
 
 // ─── Default Irrigation Thresholds ───────────────────────────────────────────
-// These are used on first boot and as fallback when no backend command has arrived.
-// The app/backend can override these via MQTT set_threshold command.
+// Used on first boot — overridden by app via MQTT set_threshold command
+// Saved to NVS so they survive power cuts
 #define DEFAULT_DRY_THRESHOLD  30.0f   // % — below this, turn pump on
 #define DEFAULT_WET_THRESHOLD  70.0f   // % — above this, turn pump off
 
 // ─── Timing ──────────────────────────────────────────────────────────────────
-#define SENSOR_READ_INTERVAL   2000          // ms — DHT11 minimum is 2000 ms
-#define PUBLISH_INTERVAL       30000         // ms — send data to backend every 30s
-#define MQTT_RETRY_INTERVAL    5000          // ms — non-blocking reconnect interval
-#define MAX_PUMP_RUNTIME       (30 * 60000)  // ms — force pump off after 30 minutes
-#define WDT_TIMEOUT_SEC        30            // seconds — watchdog reboot if loop hangs
+#define SENSOR_READ_INTERVAL   2000          // ms — DHT11 minimum is 2000ms
+#define PUBLISH_INTERVAL       30000         // ms — publish to MQTT every 30s
+#define MQTT_RETRY_INTERVAL    5000          // ms — non-blocking reconnect wait
+#define MAX_PUMP_RUNTIME       (30 * 60000)  // ms — force pump off after 30 min
+#define WDT_TIMEOUT_SEC        30            // s  — watchdog reboot if loop hangs
 
 #endif

@@ -9,14 +9,14 @@ import 'router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Load environment variables
   await dotenv.load(fileName: ".env");
 
   // Initialize Supabase
   await Supabase.initialize(
-    url: dotenv.env['https://qflazwitypjqutgbojqk.supabase.co']!,
-    anonKey: dotenv.env['eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmbGF6d2l0eXBqcXV0Z2JvanFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyOTExMjgsImV4cCI6MjA4Nzg2NzEyOH0._HPoV2Irs5ufKa_7TU1e-kCs3CWj2sOzzV0n_BzRH8U']!,
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
   runApp(
@@ -37,8 +37,11 @@ class SmartIrrigationApp extends StatelessWidget {
     return MaterialApp.router(
       title: 'Smart Irrigation',
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode:  ThemeMode.light,      // follows the OS setting automatically
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
     );
   }
 }
+

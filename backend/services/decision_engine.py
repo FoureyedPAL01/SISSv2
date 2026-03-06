@@ -13,9 +13,9 @@ async def evaluate_irrigation_needs(device_id: str, current_moisture: float, lat
     
     # Ideally, fetch from Supabase
     try:
-        res, count = supabase.table("devices").select("*, crop_profiles(*)").eq("id", device_id).execute()
-        if res and res[1] and len(res[1]) > 0:
-            device_data = res[1][0]
+        res = supabase.table("devices").select("*, crop_profiles(*)").eq("id", device_id).execute()
+        if res and res.data and len(res.data) > 0:
+            device_data = res.data[0]
             if "crop_profiles" in device_data and device_data["crop_profiles"]:
                 dry_threshold = device_data["crop_profiles"].get("min_moisture", 30.0)
     except Exception as e:
@@ -51,6 +51,8 @@ async def evaluate_irrigation_needs(device_id: str, current_moisture: float, lat
     # 4. We need to irrigate
     if current_moisture < dry_threshold:
         print(f"Moisture ({current_moisture}%) below threshold ({dry_threshold}%). Watering.")
-        send_pump_command(device_id, "pump_on", source="automated")
+        import asyncio
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, send_pump_command, device_id, "pump_on", "automated")
         # Note: The ESP32 firmware handles turning the pump OFF when it reaches the wet threshold,
         # or after the 30 minute safety timeout.

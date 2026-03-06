@@ -2,241 +2,197 @@
 #include <PubSubClient.h>
 #include <DHT.h>
 #include <ArduinoJson.h>
-#include <Preferences.h>       // ESP32 NVS: survives reboots and power loss
-#include <ArduinoOTA.h>        // Over-the-air firmware updates
-#include <esp_task_wdt.h>      // Hardware watchdog timer
+#include <Preferences.h>
+#include <ArduinoOTA.h>
 #include "config.h"
+#include "SensorData.h"  // Struct in a separate header to avoid Arduino IDE
+                         // auto-prototype injection ordering bug
 
-// ─── Objects ─────────────────────────────────────────────────────────────────
+// ─── Objects ─────────────────────────────────────────────
 WiFiClient   espClient;
 PubSubClient mqtt(espClient);
 DHT          dht(PIN_DHT, DHT11);
 Preferences  prefs;
 
-// ─── Thresholds (loaded from NVS on boot) ────────────────────────────────────
-float soilDryThreshold = DEFAULT_DRY_THRESHOLD;
-float soilWetThreshold = DEFAULT_WET_THRESHOLD;
+// ─── State ───────────────────────────────────────────────
+float    soilDryThreshold = DEFAULT_DRY_THRESHOLD;
+float    soilWetThreshold = DEFAULT_WET_THRESHOLD;
+uint32_t pumpOnTime       = 0;
+uint32_t lastSensorRead   = 0;
+uint32_t lastPublish      = 0;
 
-// ─── Pump safety tracking ────────────────────────────────────────────────────
-// Tracks when the pump was turned on so we can enforce a max runtime.
-// 0 means pump is currently off.
-uint32_t pumpOnTime = 0;
-
-// ─── Timing ──────────────────────────────────────────────────────────────────
-// Note: unsigned subtraction (millis() - lastX) handles the ~49-day
-// millis() overflow correctly because uint32_t wraps predictably in C.
-// Do NOT change these to signed integers.
-uint32_t lastSensorRead = 0;
-uint32_t lastPublish    = 0;
-
-// ─── Flow sensor pulse counter ───────────────────────────────────────────────
-// volatile: tells the compiler this variable can change outside normal code flow
-// (inside an ISR). Without this, the compiler may cache it in a register and
-// miss updates.
+// ─── Flow sensor ISR ─────────────────────────────────────
+// volatile: modified inside interrupt — compiler must not cache it
+// IRAM_ATTR: ISR must run from fast RAM, not flash
 volatile uint32_t flowPulseCount = 0;
+void IRAM_ATTR onFlowPulse() { flowPulseCount++; }
 
-// IRAM_ATTR: places this function in fast IRAM (instruction RAM).
-// Required for interrupt handlers on ESP32 — flash reads are too slow for ISRs.
-void IRAM_ATTR onFlowPulse() {
-  flowPulseCount++;
-}
+// ─── Sensor data ─────────────────────────────────────────
+// SensorData struct lives in SensorData.h
+SensorData lastReading = {0};
 
-// ─── Sensor data structure ───────────────────────────────────────────────────
-struct SensorData {
-  float soilPercent;   // 0–100%, mapped from raw ADC
-  float tempC;         // from DHT11; NaN on read failure
-  float humidity;      // from DHT11; NaN on read failure
-  bool  rainDetected;  // true = rain sensor DO pin is LOW
-  float flowLitres;    // water volume since last read
-};
-
-SensorData lastReading = {0};  // holds the most recent sensor snapshot
-
-// ─── Pump control ─────────────────────────────────────────────────────────────
-// Always use these two functions to turn the pump on/off.
-// They apply the RELAY_ACTIVE_LOW polarity defined in config.h,
-// so the rest of the code never has to think about HIGH vs LOW.
-
+// ─── Pump control ────────────────────────────────────────
 void pumpOn() {
-  if (digitalRead(PIN_PUMP_RELAY) == PUMP_ON) return;  // already on, skip
+  if (digitalRead(PIN_PUMP_RELAY) == PUMP_ON) return;
   digitalWrite(PIN_PUMP_RELAY, PUMP_ON);
-  pumpOnTime = millis();  // record when pump started for safety timeout
+  pumpOnTime = millis();
+  // Guard against millis() returning exactly 0 at the moment the pump turns
+  // on — that value is the sentinel meaning "pump is OFF", so the safety
+  // timeout check (pumpOnTime != 0) would never fire.
+  if (pumpOnTime == 0) pumpOnTime = 1;
   Serial.println("Pump ON");
 }
 
 void pumpOff() {
-  if (digitalRead(PIN_PUMP_RELAY) == PUMP_OFF) return;  // already off, skip
+  if (digitalRead(PIN_PUMP_RELAY) == PUMP_OFF) return;
   digitalWrite(PIN_PUMP_RELAY, PUMP_OFF);
-  pumpOnTime = 0;  // reset timer
+  pumpOnTime = 0;
   Serial.println("Pump OFF");
 }
 
-// ─── NVS Threshold persistence ───────────────────────────────────────────────
-// Supabase/backend can push new thresholds via MQTT. We save them to NVS
-// (non-volatile storage) so they survive a power cut or reboot.
-
+// ─── NVS threshold persistence ───────────────────────────
 void loadThresholds() {
-  prefs.begin("irr", true);  // "irr" = NVS namespace; true = read-only mode
+  prefs.begin("irr", true);
   soilDryThreshold = prefs.getFloat("dry", DEFAULT_DRY_THRESHOLD);
   soilWetThreshold = prefs.getFloat("wet", DEFAULT_WET_THRESHOLD);
   prefs.end();
-  Serial.printf("Thresholds loaded — dry: %.1f%%, wet: %.1f%%\n",
+  Serial.printf("Thresholds: dry=%.1f%% wet=%.1f%%\n",
                 soilDryThreshold, soilWetThreshold);
 }
 
 void saveThresholds(float dry, float wet) {
-  prefs.begin("irr", false);  // false = read-write mode
+  prefs.begin("irr", false);
   prefs.putFloat("dry", dry);
   prefs.putFloat("wet", wet);
   prefs.end();
-  Serial.printf("Thresholds saved — dry: %.1f%%, wet: %.1f%%\n", dry, wet);
 }
 
-// ─── Step 9: Sensor read ──────────────────────────────────────────────────────
-// Returns a SensorData snapshot. Called on its own timer (SENSOR_READ_INTERVAL)
-// independently of the 30s publish interval.
-
+// ─── Sensor read ─────────────────────────────────────────
 SensorData readSensors() {
   SensorData d;
 
-  // — Soil moisture —
   int raw = analogRead(PIN_SOIL);
-  // Manual float mapping (avoids map()'s integer truncation):
-  // SOIL_DRY_RAW → 0%, SOIL_WET_RAW → 100%
   d.soilPercent = (float)(SOIL_DRY_RAW - raw) /
                   (float)(SOIL_DRY_RAW - SOIL_WET_RAW) * 100.0f;
-  d.soilPercent = constrain(d.soilPercent, 0.0f, 100.0f);  // clamp to 0–100
+  d.soilPercent = constrain(d.soilPercent, 0.0f, 100.0f);
 
-  // — DHT11 temperature & humidity —
-  // Returns NaN on failure — the backend handles NaN gracefully
-  d.tempC    = dht.readTemperature();
-  d.humidity = dht.readHumidity();
-
-  // — Rain sensor (digital DO pin) —
-  // DO pin is LOW when rain is detected (module's onboard comparator pulls it LOW)
+  d.tempC        = dht.readTemperature();
+  d.humidity     = dht.readHumidity();
   d.rainDetected = (digitalRead(PIN_RAIN) == LOW);
 
-  // — Flow sensor —
-  // Snapshot pulse count atomically, then reset.
-  // noInterrupts()/interrupts() prevent the ISR from modifying the counter
-  // mid-copy, which would give a corrupted value.
+  // Atomically snapshot and reset pulse counter
   noInterrupts();
   uint32_t pulses = flowPulseCount;
   flowPulseCount  = 0;
   interrupts();
-  // YF-S201 spec: ~450 pulses per litre (calibrate with a measuring jug)
-  d.flowLitres = pulses / 450.0f;
+  d.flowLitres = pulses / 450.0f;  // YF-S201: ~450 pulses/litre
 
   return d;
 }
 
-// ─── Step 10: Publish sensor JSON every 30s ───────────────────────────────────
-// Builds a compact JSON string and sends it to devices/{id}/sensors.
-// The Python backend will add a real UTC timestamp when it stores the record.
-
+// ─── MQTT publish ─────────────────────────────────────────
 void publishSensors(const SensorData& d) {
-  StaticJsonDocument<256> doc;
+  if (!mqtt.connected()) return;
+
+  JsonDocument doc;
   doc["device_id"]   = DEVICE_ID;
-  doc["soil_pct"]    = serialized(String(d.soilPercent, 1));  // 1 decimal place
-  doc["temp_c"]      = isnan(d.tempC)    ? nullptr : serialized(String(d.tempC, 1));
-  doc["humidity"]    = isnan(d.humidity) ? nullptr : serialized(String(d.humidity, 1));
+  doc["soil_pct"]    = round(d.soilPercent * 10) / 10.0;
   doc["rain"]        = d.rainDetected;
-  doc["flow_litres"] = serialized(String(d.flowLitres, 3));
+  doc["flow_litres"] = round(d.flowLitres * 1000) / 1000.0;
 
-  char buffer[256];
-  serializeJson(doc, buffer);
+  if (!isnan(d.tempC))    doc["temp_c"]   = round(d.tempC * 10) / 10.0;
+  if (!isnan(d.humidity)) doc["humidity"] = round(d.humidity * 10) / 10.0;
 
-  if (mqtt.connected()) {
-    bool ok = mqtt.publish(TOPIC_SENSORS, buffer);
-    Serial.println(ok ? "Published sensors" : "Publish failed");
-  }
-}
-
-// ─── Step 11: MQTT message handler ───────────────────────────────────────────
-// PubSubClient calls this automatically on every incoming message.
-// Handles three commands:
-//   {"cmd": "pump_on"}
-//   {"cmd": "pump_off"}
-//   {"cmd": "set_threshold", "dry": 25.0, "wet": 65.0}
-
-void handleThresholdUpdate(JsonDocument& doc) {
-  // Use existing value as default if a key is missing from the JSON
-  float dry = doc["dry"] | soilDryThreshold;
-  float wet = doc["wet"] | soilWetThreshold;
-
-  if (dry >= wet) {
-    Serial.println("Invalid thresholds: dry must be < wet. Ignoring.");
+  // Use measureJson() to size the buffer exactly rather than a fixed 256-byte
+  // array that would silently truncate if the payload exceeded it.
+  size_t needed = measureJson(doc) + 1;
+  char buffer[needed];
+  size_t written = serializeJson(doc, buffer, needed);
+  if (written == 0) {
+    Serial.println("JSON serialisation failed");
     return;
   }
-  soilDryThreshold = dry;
-  soilWetThreshold = wet;
-  saveThresholds(dry, wet);
+
+  bool ok = mqtt.publish(TOPIC_SENSORS, buffer);
+  Serial.println(ok ? "Published" : "Publish failed");
 }
 
+// ─── MQTT command handler ────────────────────────────────
 void onMqttMessage(char* topic, byte* payload, unsigned int len) {
-  char msg[len + 1];
+  // Use a fixed-size buffer instead of a VLA (char msg[len+1]).
+  // A VLA sized from an untrusted network packet can overflow the stack
+  // and crash the device if a large or malformed packet arrives.
+  const unsigned int MAX_MSG_LEN = 256;
+  if (len >= MAX_MSG_LEN) {
+    Serial.printf("MQTT message too long (%u bytes), ignored\n", len);
+    return;
+  }
+  char msg[MAX_MSG_LEN];
   memcpy(msg, payload, len);
   msg[len] = '\0';
-
   Serial.printf("MQTT [%s]: %s\n", topic, msg);
 
-  // 128 bytes fits all three command types including set_threshold fields
-  StaticJsonDocument<128> doc;
-  if (deserializeJson(doc, msg)) {
-    Serial.println("Bad JSON, ignoring");
-    return;
-  }
+  JsonDocument doc;
+  if (deserializeJson(doc, msg)) { Serial.println("Bad JSON"); return; }
 
-  // Guard against missing "cmd" key — strcmp on a null pointer crashes the ESP32
   const char* cmd = doc["cmd"];
-  if (!cmd) {
-    Serial.println("No 'cmd' key, ignoring");
-    return;
-  }
+  if (!cmd) return;
 
-  if      (strcmp(cmd, "pump_on")        == 0) pumpOn();
-  else if (strcmp(cmd, "pump_off")       == 0) pumpOff();
-  else if (strcmp(cmd, "set_threshold")  == 0) handleThresholdUpdate(doc);
-  else Serial.printf("Unknown cmd: %s\n", cmd);
+  if      (strcmp(cmd, "pump_on")  == 0) pumpOn();
+  else if (strcmp(cmd, "pump_off") == 0) pumpOff();
+  else if (strcmp(cmd, "set_threshold") == 0) {
+    float dry = doc["dry"] | soilDryThreshold;
+    float wet = doc["wet"] | soilWetThreshold;
+    // Also validate the physical 0–100 % range, not just dry < wet.
+    // Without this, out-of-range values corrupt NVS and permanently
+    // break irrigation logic.
+    if (dry < wet && dry >= 0.0f && wet <= 100.0f) {
+      soilDryThreshold = dry;
+      soilWetThreshold = wet;
+      saveThresholds(dry, wet);
+      Serial.printf("Thresholds updated: dry=%.1f wet=%.1f\n", dry, wet);
+    } else {
+      Serial.println("Invalid thresholds — ignored");
+    }
+  }
 }
 
-// ─── Step 12: Local fallback irrigation logic ────────────────────────────────
-// Runs every loop iteration (not just every 30s) so the system reacts
-// to rain or threshold crossings within SENSOR_READ_INTERVAL (2 seconds).
-//
-// This function is the safety net:
-//   - Works with no WiFi
-//   - Works with no MQTT
-//   - Protects against pump running forever (safety timeout)
-
+// ─── Local fallback irrigation logic ─────────────────────
+// Runs every 2 s — keeps irrigating even with no WiFi/MQTT
 void localIrrigationLogic(const SensorData& d) {
 
-  // ── Safety timeout: force pump off if it has run too long ──────────────────
-  // Protects against backend crash, lost MQTT connection, or stuck pump_on command.
+  // Safety: force pump off after 30 minutes
   if (pumpOnTime != 0 && (millis() - pumpOnTime) > MAX_PUMP_RUNTIME) {
     pumpOff();
-    Serial.println("SAFETY: pump auto-shutoff after max runtime exceeded");
+    Serial.println("SAFETY: pump max runtime exceeded");
     return;
   }
 
-  // ── Rain override: always stop pumping if rain detected ───────────────────
-  if (d.rainDetected) {
-    pumpOff();
+  // Skip irrigation decisions when the DHT read has failed (returns NaN).
+  // The original code ignored sensor validity, so a failed read could leave
+  // soil-moisture as the only guard with no indication anything was wrong.
+  if (isnan(d.tempC) || isnan(d.humidity)) {
+    Serial.println("Sensor read failed — skipping irrigation decision");
     return;
   }
 
-  // ── Threshold logic ───────────────────────────────────────────────────────
-  if (d.soilPercent < soilDryThreshold) pumpOn();
-  if (d.soilPercent > soilWetThreshold) pumpOff();
+  if (d.rainDetected)                     { pumpOff(); return; }
+  if (d.soilPercent < soilDryThreshold)     pumpOn();
+  if (d.soilPercent > soilWetThreshold)     pumpOff();
 }
 
-// ─── WiFi ────────────────────────────────────────────────────────────────────
-
+// ─── WiFi ────────────────────────────────────────────────
 void setupWiFi() {
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.print("Connecting to WiFi");
-  // Blocking only at startup — acceptable here since nothing else is running yet
+  Serial.print("WiFi connecting");
+  // Timeout after 15 s so the device doesn't block indefinitely at boot
+  // when the AP is unreachable. Local irrigation still works without WiFi.
+  uint32_t start = millis();
   while (WiFi.status() != WL_CONNECTED) {
+    if (millis() - start > 15000) {
+      Serial.println("\nWiFi timeout — continuing without network");
+      return;
+    }
     delay(500);
     Serial.print(".");
   }
@@ -244,78 +200,55 @@ void setupWiFi() {
 }
 
 void maintainWiFi() {
-  // Non-blocking: if WiFi dropped, start reconnect but don't wait for it.
-  // Local irrigation logic keeps running in the meantime.
-  if (WiFi.status() != WL_CONNECTED) {
-    static uint32_t lastWiFiAttempt = 0;
-    if (millis() - lastWiFiAttempt > 10000) {  // retry every 10s
-      lastWiFiAttempt = millis();
-      Serial.println("WiFi lost — reconnecting...");
-      WiFi.disconnect();
-      WiFi.begin(WIFI_SSID, WIFI_PASS);
-    }
+  if (WiFi.status() == WL_CONNECTED) return;
+  static uint32_t last = 0;
+  if (millis() - last > 10000) {
+    last = millis();
+    WiFi.disconnect();
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    Serial.println("WiFi reconnecting...");
   }
 }
 
-// ─── MQTT ─────────────────────────────────────────────────────────────────────
-
+// ─── MQTT ────────────────────────────────────────────────
 void reconnectMqtt() {
-  if (mqtt.connected()) return;
-  if (WiFi.status() != WL_CONNECTED) return;  // no point trying without WiFi
+  if (mqtt.connected() || WiFi.status() != WL_CONNECTED) return;
+  static uint32_t last = 0;
+  if (millis() - last < MQTT_RETRY_INTERVAL) return;
+  last = millis();
 
-  // static preserves this variable between calls without making it global
-  static uint32_t lastAttempt = 0;
-  if (millis() - lastAttempt < MQTT_RETRY_INTERVAL) return;  // non-blocking wait
-  lastAttempt = millis();
-
-  Serial.print("Connecting to MQTT...");
+  Serial.print("MQTT connecting...");
   if (mqtt.connect(DEVICE_ID, MQTT_USER, MQTT_PASS)) {
     Serial.println("connected");
     mqtt.subscribe(TOPIC_CONTROL);
   } else {
-    Serial.printf("failed (rc=%d)\n", mqtt.state());
-    // rc codes: -4=timeout, -3=denied, -2=unavailable, -1=bad protocol, 1=bad ID
+    Serial.printf("failed rc=%d\n", mqtt.state());
   }
 }
 
-// ─── OTA (Over-The-Air updates) ───────────────────────────────────────────────
-// Allows re-flashing firmware over WiFi — no USB cable needed after first deploy.
-// Access via Arduino IDE → Tools → Port → Network Ports → esp32_01
-
+// ─── OTA ─────────────────────────────────────────────────
 void setupOTA() {
-  ArduinoOTA.setHostname(DEVICE_ID);   // shows up by name on the network
-
-  // Optional: set a password so random devices can't push firmware
-  // ArduinoOTA.setPassword("your_ota_password");
-
-  ArduinoOTA.onStart([]()  { Serial.println("OTA start");  });
-  ArduinoOTA.onEnd([]()    { Serial.println("\nOTA done");  });
-  ArduinoOTA.onError([](ota_error_t e) {
-    Serial.printf("OTA error[%u]\n", e);
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("OTA %u%%\r", progress / (total / 100));
-  });
-
+  ArduinoOTA.setHostname(DEVICE_ID);
+  ArduinoOTA.onStart([]()  { Serial.println("OTA start"); });
+  ArduinoOTA.onEnd([]()    { Serial.println("OTA done");  });
+  ArduinoOTA.onError([](ota_error_t e) { Serial.printf("OTA error %u\n", e); });
   ArduinoOTA.begin();
   Serial.println("OTA ready");
 }
 
-// ─── setup() ─────────────────────────────────────────────────────────────────
-
+// ─── Setup ───────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
 
-  // Pump off immediately at boot — safety first
   pinMode(PIN_PUMP_RELAY, OUTPUT);
   pumpOff();
 
-  // Flow sensor — interrupt fires on each rising edge (pulse front)
   pinMode(PIN_FLOW, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_FLOW), onFlowPulse, RISING);
 
-  // Rain sensor DO pin as input
-  pinMode(PIN_RAIN, INPUT);
+  // INPUT_PULLUP prevents a floating pin from triggering false rain events
+  // when no external pull-up resistor is fitted on the rain sensor DO line.
+  pinMode(PIN_RAIN, INPUT_PULLUP);
 
   dht.begin();
   loadThresholds();
@@ -325,35 +258,24 @@ void setup() {
   mqtt.setCallback(onMqttMessage);
 
   setupOTA();
-
-  // Watchdog timer: if loop() stops being called for WDT_TIMEOUT_SEC seconds,
-  // the hardware automatically reboots the ESP32. Catches infinite loops,
-  // sensor lockups, and memory issues.
-  esp_task_wdt_init(WDT_TIMEOUT_SEC, true);  // true = panic/reboot on timeout
-  esp_task_wdt_add(NULL);  // register the main loop task with the watchdog
-
   Serial.println("Setup complete");
 }
 
-// ─── loop() ──────────────────────────────────────────────────────────────────
-
+// ─── Loop ────────────────────────────────────────────────
 void loop() {
-  esp_task_wdt_reset();   // feed the watchdog — must happen within WDT_TIMEOUT_SEC
+  maintainWiFi();
+  reconnectMqtt();
+  mqtt.loop();
+  ArduinoOTA.handle();
 
-  maintainWiFi();         // reconnect WiFi if dropped (non-blocking)
-  reconnectMqtt();        // reconnect MQTT if dropped (non-blocking)
-  mqtt.loop();            // let PubSubClient process incoming messages
-  ArduinoOTA.handle();    // check for pending OTA update
-
-  // Read sensors on their own timer (DHT11 needs minimum 2s between reads)
-  // Note: unsigned subtraction handles millis() ~49-day overflow safely
+  // Read sensors every 2 s (DHT11 minimum interval)
   if (millis() - lastSensorRead >= SENSOR_READ_INTERVAL) {
     lastSensorRead = millis();
     lastReading = readSensors();
-    localIrrigationLogic(lastReading);  // runs every 2s — reacts to rain quickly
+    localIrrigationLogic(lastReading);
   }
 
-  // Publish to MQTT every 30s using the most recent reading
+  // Publish to MQTT every 30 s
   if (millis() - lastPublish >= PUBLISH_INTERVAL) {
     lastPublish = millis();
     publishSensors(lastReading);
