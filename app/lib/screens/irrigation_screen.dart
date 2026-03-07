@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state_provider.dart';
 
@@ -230,7 +229,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
             isStrokeCapRound: true,
             dotData: FlDotData(
               show: true,
-              getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
+              getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
                 radius: 3,
                 color: Colors.green,
                 strokeWidth: 1,

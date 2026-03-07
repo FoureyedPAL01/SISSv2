@@ -27,27 +27,33 @@ class _PumpControlScreenState extends State<PumpControlScreen> {
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Pump $command sent successfully.'),
-            behavior: SnackBarBehavior.floating,
-          )
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Pump $command sent successfully.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       } else {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to send command. Server returned ${response.statusCode}'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send command. Server returned ${response.statusCode}'),
+            content: Text('Error connecting to backend: $e'),
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error connecting to backend: $e'),
-          behavior: SnackBarBehavior.floating, // Enables floating behavior
-        )
-      );
     } finally {
       if (mounted) setState(() => _isChanging = false);
     }

@@ -13,6 +13,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../providers/app_state_provider.dart';
+import '../utils/unit_converter.dart';
 
 // ─── Lightweight data models ──────────────────────────────────────────────────
 
@@ -38,28 +39,20 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-
-  // ── SISF Official Color Palette ─────────────────────────────────────────────
-  // Light theme
-  static const Color _lBg        = Color(0xFFFEF5ED);
-  static const Color _lComponent = Color(0xFFF9F7F7);
-  static const Color _lText      = Color(0xFF000000);
-  static const Color _lButton    = Color(0xFF347433);
-  // Dark theme
-  static const Color _dBg        = Color(0xFF191919);
-  static const Color _dComponent = Color(0xFF2B2B2B);
-  static const Color _dText      = Color(0xFFF5F5F0);
-  static const Color _dButton    = Color(0xFF347433);
-
   // ── Sensor accent colors (consistent across themes) ──────────────────────────
   static const Color _cMoisture = Color(0xFF4A90E2);
-  static const Color _cTemp     = Color(0xFFE87722);
-  static const Color _cHumid    = Color(0xFF7C6FCD);
-  static const Color _cFlow     = Color(0xFF00B4C4);
+  static const Color _cTemp = Color(0xFFE87722);
+  static const Color _cHumid = Color(0xFF7C6FCD);
+  static const Color _cFlow = Color(0xFF00B4C4);
 
   List<_SparkPoint> _buildSparkFromHistory(
-      List<Map<String, dynamic>> history, String field, int points) {
-    debugPrint('[DEBUG] Building sparkline for $field, history length: ${history.length}');
+    List<Map<String, dynamic>> history,
+    String field,
+    int points,
+  ) {
+    debugPrint(
+      '[DEBUG] Building sparkline for $field, history length: ${history.length}',
+    );
     if (history.isEmpty) {
       debugPrint('[DEBUG] History EMPTY - showing zeros instead of mock data');
       return List.generate(points, (i) => _SparkPoint(i, 0));
@@ -80,10 +73,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   List<_ChartPoint> _buildChartFromHistory(
-      List<Map<String, dynamic>> history, String field) {
-    debugPrint('[DEBUG] Building chart for $field, history length: ${history.length}');
+    List<Map<String, dynamic>> history,
+    String field,
+  ) {
+    debugPrint(
+      '[DEBUG] Building chart for $field, history length: ${history.length}',
+    );
     if (history.isEmpty) {
-      debugPrint('[DEBUG] History EMPTY - showing empty chart instead of mock data');
+      debugPrint(
+        '[DEBUG] History EMPTY - showing empty chart instead of mock data',
+      );
       return [];
     }
     return history.map((row) {
@@ -98,12 +97,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ─────────────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg     = isDark ? _dBg        : _lBg;
-    final comp   = isDark ? _dComponent : _lComponent;
-    final text   = isDark ? _dText      : _lText;
-    final muted  = text.withValues(alpha: 0.45);
-    final btn    = isDark ? _dButton    : _lButton;
+    final bg = colorScheme.background;
+    final comp = colorScheme.surfaceContainerHighest;
+    final text = colorScheme.onSurface;
+    final muted = text.withValues(alpha: 0.45);
+    final btn = colorScheme.primary;
 
     return Consumer<AppStateProvider>(
       builder: (context, state, _) {
@@ -118,38 +118,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return Scaffold(
             backgroundColor: bg,
             body: Center(
-              child: Text('No device linked to this account.',
-                  style: _style(text, size: 15)),
+              child: Text(
+                'No device linked to this account.',
+                style: _style(text, size: 15),
+              ),
             ),
           );
         }
 
         // ── Extract sensor data ────────────────────────────────────────────
         debugPrint('[DEBUG] latestSensorData: ${state.latestSensorData}');
-        debugPrint('[DEBUG] sensorHistory count: ${state.sensorHistory.length}');
+        debugPrint(
+          '[DEBUG] sensorHistory count: ${state.sensorHistory.length}',
+        );
 
-        final d         = state.latestSensorData;
-        final moisture  = (d['soil_moisture'] as num? ?? 0).toDouble();
-        final temp      = (d['temperature_c'] as num? ?? 28).toDouble();
-        final humidity  = (d['humidity']      as num? ?? 0).toDouble();
-        final flowRate  = (d['flow_litres']  as num? ?? 0).toDouble();
+        final d = state.latestSensorData;
+        final moisture = (d['soil_moisture'] as num? ?? 0).toDouble();
+        final tempC = (d['temperature_c'] as num? ?? 28).toDouble();
+        final humidity = (d['humidity'] as num? ?? 0).toDouble();
+        final flowLpm = (d['flow_litres'] as num? ?? 0).toDouble();
+
+        final tempUnit = state.tempUnit;
+        final tempDisplay = UnitConverter.formatTemp(tempC, tempUnit);
+
+        final temp = tempC;
+        final flowRate = flowLpm;
+
         final isRaining = d['rain_detected'] == true;
 
-        debugPrint('[DEBUG] Moisture: $moisture, Temp: $temp, Humidity: $humidity, Flow: $flowRate');
+        debugPrint(
+          '[DEBUG] Moisture: $moisture, Temp: $temp, Humidity: $humidity, Flow: $flowLpm',
+        );
 
         // TODO: pull pumpRunning from state.pumpStatus when available
         const pumpRunning = false;
 
         // ── Sparkline data ──────────────────────────────────────────────
-        final moistSpark = _buildSparkFromHistory(state.sensorHistory, 'soil_moisture', 20);
-        final tempSpark  = _buildSparkFromHistory(state.sensorHistory, 'temperature_c', 20);
-        final humidSpark = _buildSparkFromHistory(state.sensorHistory, 'humidity', 20);
-        final flowSpark  = _buildSparkFromHistory(state.sensorHistory, 'flow_litres', 20);
+        final moistSpark = _buildSparkFromHistory(
+          state.sensorHistory,
+          'soil_moisture',
+          20,
+        );
+        final tempSpark = _buildSparkFromHistory(
+          state.sensorHistory,
+          'temperature_c',
+          20,
+        );
+        final humidSpark = _buildSparkFromHistory(
+          state.sensorHistory,
+          'humidity',
+          20,
+        );
+        final flowSpark = _buildSparkFromHistory(
+          state.sensorHistory,
+          'flow_litres',
+          20,
+        );
 
         // ── Chart history ────────────────────────────────────────────────
-        final moistHist = _buildChartFromHistory(state.sensorHistory, 'soil_moisture');
-        final tempHist  = _buildChartFromHistory(state.sensorHistory, 'temperature_c');
-        final humidHist = _buildChartFromHistory(state.sensorHistory, 'humidity');
+        final moistHist = _buildChartFromHistory(
+          state.sensorHistory,
+          'soil_moisture',
+        );
+        final tempHist = _buildChartFromHistory(
+          state.sensorHistory,
+          'temperature_c',
+        );
+        final humidHist = _buildChartFromHistory(
+          state.sensorHistory,
+          'humidity',
+        );
 
         return Scaffold(
           backgroundColor: bg,
@@ -163,54 +201,104 @@ class _DashboardScreenState extends State<DashboardScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
               child: LayoutBuilder(
-                  builder: (_, constraints) {
-                    final isDesktop = constraints.maxWidth >= 700;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // ── Dashboard header ─────────────────────────────
-                        _buildHeader(text, muted),
-                        const SizedBox(height: 20),
+                builder: (_, constraints) {
+                  final isDesktop = constraints.maxWidth >= 700;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Dashboard header ─────────────────────────────
+                      _buildHeader(text, muted, btn),
+                      const SizedBox(height: 20),
 
-                        // ── 4 Sensor cards ───────────────────────────────
-                        _buildSensorCards(
-                          isDark: isDark, comp: comp, text: text, muted: muted,
-                          isDesktop: isDesktop,
-                          moisture: moisture, temp: temp,
-                          humidity: humidity, flowRate: flowRate,
-                          moistSpark: moistSpark, tempSpark: tempSpark,
-                          humidSpark: humidSpark, flowSpark: flowSpark,
-                        ),
-                        const SizedBox(height: 16),
+                      // ── 4 Sensor cards ───────────────────────────────
+                      _buildSensorCards(
+                        isDark: isDark,
+                        comp: comp,
+                        text: text,
+                        muted: muted,
+                        isDesktop: isDesktop,
+                        moisture: moisture,
+                        temp: temp,
+                        humidity: humidity,
+                        flowRate: flowRate,
+                        moistSpark: moistSpark,
+                        tempSpark: tempSpark,
+                        humidSpark: humidSpark,
+                        flowSpark: flowSpark,
+                        tempDisplay: tempDisplay,
+                      ),
+                      const SizedBox(height: 16),
 
-                        // ── Moisture chart + side cards ──────────────────
-                        isDesktop
-                            ? _buildMiddleDesktop(
-                                isDark: isDark, comp: comp, text: text, muted: muted,
-                                isRaining: isRaining, pumpRunning: pumpRunning,
-                                flowRate: flowRate, moistHist: moistHist,
-                              )
-                            : _buildMiddleMobile(
-                                isDark: isDark, comp: comp, text: text, muted: muted,
-                                isRaining: isRaining, pumpRunning: pumpRunning,
-                                flowRate: flowRate, moistHist: moistHist,
-                              ),
-                        const SizedBox(height: 16),
+                      // ── Moisture chart + side cards ─────────────────────
+                      isDesktop
+                          ? _buildMiddleDesktop(
+                              isDark: isDark,
+                              comp: comp,
+                              text: text,
+                              muted: muted,
+                              btn: btn,
+                              isRaining: isRaining,
+                              pumpRunning: pumpRunning,
+                              flowRate: flowRate,
+                              moistHist: moistHist,
+                            )
+                          : _buildMiddleMobile(
+                              isDark: isDark,
+                              comp: comp,
+                              text: text,
+                              muted: muted,
+                              btn: btn,
+                              isRaining: isRaining,
+                              pumpRunning: pumpRunning,
+                              flowRate: flowRate,
+                              moistHist: moistHist,
+                            ),
+                      const SizedBox(height: 16),
 
-                        // ── Temp & Humidity chart ────────────────────────
-                        _buildTempHumidChart(
-                          isDark: isDark, comp: comp, text: text, muted: muted,
-                          tempData: tempHist, humidData: humidHist,
-                          currentTemp: temp,
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    );
-                  },
-                ),
+                      // ── Moisture chart + side cards ──────────────────
+                      isDesktop
+                          ? _buildMiddleDesktop(
+                              isDark: isDark,
+                              comp: comp,
+                              text: text,
+                              muted: muted,
+                              btn: btn,
+                              isRaining: isRaining,
+                              pumpRunning: pumpRunning,
+                              flowRate: flowRate,
+                              moistHist: moistHist,
+                            )
+                          : _buildMiddleMobile(
+                              isDark: isDark,
+                              comp: comp,
+                              text: text,
+                              muted: muted,
+                              btn: btn,
+                              isRaining: isRaining,
+                              pumpRunning: pumpRunning,
+                              flowRate: flowRate,
+                              moistHist: moistHist,
+                            ),
+                      const SizedBox(height: 16),
+
+                      // ── Temp & Humidity chart ────────────────────────
+                      _buildTempHumidChart(
+                        isDark: isDark,
+                        comp: comp,
+                        text: text,
+                        muted: muted,
+                        tempData: tempHist,
+                        humidData: humidHist,
+                        currentTemp: temp,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  );
+                },
               ),
             ),
-          );
+          ),
+        );
       },
     );
   }
@@ -218,80 +306,135 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ─────────────────────────────────────────────────────────────────────────────
   // Header
   // ─────────────────────────────────────────────────────────────────────────────
-  Widget _buildHeader(Color text, Color muted) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildHeader(Color text, Color muted, Color btn) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Dashboard',
+        style: _style(
+          text,
+          size: 28,
+          weight: FontWeight.bold,
+          fontFamily: 'Bungee',
+        ),
+      ),
+      const SizedBox(height: 3),
+      Row(
         children: [
-          Text('Dashboard', style: _style(text, size: 28, weight: FontWeight.bold, fontFamily: 'Bungee')),
-          const SizedBox(height: 3),
-          Row(children: [
-            Text('Real-time monitoring · ', style: _style(muted, size: 13, fontFamily: 'Merriweather')),
-            Text('Main Field Node',
-                style: _style(_dButton, size: 13, weight: FontWeight.w600, fontFamily: 'Merriweather')),
-          ]),
+          Text(
+            'Real-time monitoring · ',
+            style: _style(muted, size: 13, fontFamily: 'Merriweather'),
+          ),
+          Text(
+            'Main Field Node',
+            style: _style(
+              btn,
+              size: 13,
+              weight: FontWeight.w600,
+              fontFamily: 'Merriweather',
+            ),
+          ),
         ],
-      );
+      ),
+    ],
+  );
 
   // ─────────────────────────────────────────────────────────────────────────────
   // 4 Sensor Cards — 4-in-a-row on desktop, 2×2 grid on mobile
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildSensorCards({
-    required bool isDark, required Color comp, required Color text, required Color muted,
+    required bool isDark,
+    required Color comp,
+    required Color text,
+    required Color muted,
     required bool isDesktop,
-    required double moisture, required double temp,
-    required double humidity, required double flowRate,
-    required List<_SparkPoint> moistSpark, required List<_SparkPoint> tempSpark,
-    required List<_SparkPoint> humidSpark, required List<_SparkPoint> flowSpark,
+    required double moisture,
+    required double temp,
+    required double humidity,
+    required double flowRate,
+    required List<_SparkPoint> moistSpark,
+    required List<_SparkPoint> tempSpark,
+    required List<_SparkPoint> humidSpark,
+    required List<_SparkPoint> flowSpark,
+    String? tempDisplay,
   }) {
     final cards = <_SensorCard>[
       _SensorCard(
-        isDark: isDark, comp: comp, text: text, muted: muted,
+        isDark: isDark,
+        comp: comp,
+        text: text,
+        muted: muted,
         label: 'SOIL MOISTURE',
-        value: moisture.toStringAsFixed(1), unit: '%',
+        value: moisture.toStringAsFixed(1),
+        unit: '%',
         accentColor: _cMoisture,
         icon: PhosphorIcons.drop(),
-        sparkData: moistSpark, gaugeMax: 100,
+        sparkData: moistSpark,
+        gaugeMax: 100,
       ),
       _SensorCard(
-        isDark: isDark, comp: comp, text: text, muted: muted,
+        isDark: isDark,
+        comp: comp,
+        text: text,
+        muted: muted,
         label: 'TEMPERATURE',
-        value: temp.toStringAsFixed(1), unit: '°C',
+        value: tempDisplay ?? temp.toStringAsFixed(1),
+        unit: tempDisplay != null ? '' : '°C',
         accentColor: _cTemp,
         icon: PhosphorIcons.thermometer(),
-        sparkData: tempSpark, gaugeMax: 50,
+        sparkData: tempSpark,
+        gaugeMax: 50,
       ),
       _SensorCard(
-        isDark: isDark, comp: comp, text: text, muted: muted,
+        isDark: isDark,
+        comp: comp,
+        text: text,
+        muted: muted,
         label: 'HUMIDITY',
-        value: humidity.toStringAsFixed(1), unit: '%',
+        value: humidity.toStringAsFixed(1),
+        unit: '%',
         accentColor: _cHumid,
         icon: PhosphorIcons.cloud(),
-        sparkData: humidSpark, gaugeMax: 100,
+        sparkData: humidSpark,
+        gaugeMax: 100,
       ),
       _SensorCard(
-        isDark: isDark, comp: comp, text: text, muted: muted,
+        isDark: isDark,
+        comp: comp,
+        text: text,
+        muted: muted,
         label: 'FLOW RATE',
-        value: flowRate.toStringAsFixed(1), unit: 'L/min',
+        value: flowRate.toStringAsFixed(1),
+        unit: 'L/min',
         accentColor: _cFlow,
         // NOTE: change to PhosphorIcons.waveform() if your version supports it
         icon: PhosphorIcons.waveform(),
-        sparkData: flowSpark, gaugeMax: 10,
+        sparkData: flowSpark,
+        gaugeMax: 10,
       ),
     ];
 
     if (isDesktop) {
       return Row(
-        children: List.generate(cards.length, (i) => Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(left: i == 0 ? 0 : 6, right: i == 3 ? 0 : 6),
-            child: cards[i],
+        children: List.generate(
+          cards.length,
+          (i) => Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: i == 0 ? 0 : 6,
+                right: i == 3 ? 0 : 6,
+              ),
+              child: cards[i],
+            ),
           ),
-        )),
+        ),
       );
     }
 
     return GridView.count(
       crossAxisCount: 2,
-      crossAxisSpacing: 12, mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
       childAspectRatio: 0.82,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -303,73 +446,119 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Middle section — Desktop (chart left, cards right)
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildMiddleDesktop({
-    required bool isDark, required Color comp, required Color text, required Color muted,
-    required bool isRaining, required bool pumpRunning,
-    required double flowRate, required List<_ChartPoint> moistHist,
-  }) =>
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 62,
-            child: _buildMoistureChart(
-              isDark: isDark, comp: comp, text: text, muted: muted,
-              data: moistHist,
+    required bool isDark,
+    required Color comp,
+    required Color text,
+    required Color muted,
+    required Color btn,
+    required bool isRaining,
+    required bool pumpRunning,
+    required double flowRate,
+    required List<_ChartPoint> moistHist,
+  }) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(
+        flex: 62,
+        child: _buildMoistureChart(
+          isDark: isDark,
+          comp: comp,
+          text: text,
+          muted: muted,
+          data: moistHist,
+        ),
+      ),
+      const SizedBox(width: 16),
+      SizedBox(
+        width: 295,
+        child: Column(
+          children: [
+            _buildPumpCard(
+              isDark: isDark,
+              comp: comp,
+              text: text,
+              muted: muted,
+              btn: btn,
+              running: pumpRunning,
+              flow: flowRate,
             ),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 295,
-            child: Column(children: [
-              _buildPumpCard(
-                isDark: isDark, comp: comp, text: text, muted: muted,
-                running: pumpRunning, flow: flowRate,
-              ),
-              const SizedBox(height: 12),
-              _buildRainCard(
-                isDark: isDark, comp: comp, text: text, muted: muted,
-                isRaining: isRaining,
-              ),
-              const SizedBox(height: 12),
-              _buildProfileCard(
-                isDark: isDark, comp: comp, text: text, muted: muted,
-              ),
-            ]),
-          ),
-        ],
-      );
+            const SizedBox(height: 12),
+            _buildRainCard(
+              isDark: isDark,
+              comp: comp,
+              text: text,
+              muted: muted,
+              isRaining: isRaining,
+            ),
+            const SizedBox(height: 12),
+            _buildProfileCard(
+              isDark: isDark,
+              comp: comp,
+              text: text,
+              muted: muted,
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Middle section — Mobile (stacked)
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildMiddleMobile({
-    required bool isDark, required Color comp, required Color text, required Color muted,
-    required bool isRaining, required bool pumpRunning,
-    required double flowRate, required List<_ChartPoint> moistHist,
-  }) =>
-      Column(children: [
-        _buildMoistureChart(
-          isDark: isDark, comp: comp, text: text, muted: muted, data: moistHist),
-        const SizedBox(height: 12),
-        _buildPumpCard(
-          isDark: isDark, comp: comp, text: text, muted: muted,
-          running: pumpRunning, flow: flowRate),
-        const SizedBox(height: 12),
-        _buildRainCard(
-          isDark: isDark, comp: comp, text: text, muted: muted, isRaining: isRaining),
-        const SizedBox(height: 12),
-        _buildProfileCard(
-          isDark: isDark, comp: comp, text: text, muted: muted),
-      ]);
+    required bool isDark,
+    required Color comp,
+    required Color text,
+    required Color muted,
+    required Color btn,
+    required bool isRaining,
+    required bool pumpRunning,
+    required double flowRate,
+    required List<_ChartPoint> moistHist,
+  }) => Column(
+    children: [
+      _buildMoistureChart(
+        isDark: isDark,
+        comp: comp,
+        text: text,
+        muted: muted,
+        data: moistHist,
+      ),
+      const SizedBox(height: 12),
+      _buildPumpCard(
+        isDark: isDark,
+        comp: comp,
+        text: text,
+        muted: muted,
+        btn: btn,
+        running: pumpRunning,
+        flow: flowRate,
+      ),
+      const SizedBox(height: 12),
+      _buildRainCard(
+        isDark: isDark,
+        comp: comp,
+        text: text,
+        muted: muted,
+        isRaining: isRaining,
+      ),
+      const SizedBox(height: 12),
+      _buildProfileCard(isDark: isDark, comp: comp, text: text, muted: muted),
+    ],
+  );
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Soil Moisture History Chart
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildMoistureChart({
-    required bool isDark, required Color comp, required Color text, required Color muted,
+    required bool isDark,
+    required Color comp,
+    required Color text,
+    required Color muted,
     required List<_ChartPoint> data,
   }) {
-    final gridColor  = text.withValues(alpha: 0.07);
+    final gridColor = text.withValues(alpha: 0.07);
     final spots = _timeSeriesToSpots(data);
     final maxX = spots.isEmpty ? 1.0 : spots.last.x;
 
@@ -379,18 +568,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Text('Soil Moisture History', style: _style(text, size: 16, weight: FontWeight.bold, fontFamily: 'Bungee')),
-            const Spacer(),
-            _legendItem(Colors.redAccent,  'Dry (30%)'),
-            const SizedBox(width: 14),
-            _legendItem(_cMoisture, 'Wet (70%)'),
-          ]),
+          Row(
+            children: [
+              Text(
+                'Soil Moisture History',
+                style: _style(
+                  text,
+                  size: 16,
+                  weight: FontWeight.bold,
+                  fontFamily: 'Bungee',
+                ),
+              ),
+              const Spacer(),
+              _legendItem(Colors.redAccent, 'Dry (30%)'),
+              const SizedBox(width: 14),
+              _legendItem(_cMoisture, 'Wet (70%)'),
+            ],
+          ),
           const SizedBox(height: 14),
           SizedBox(
             height: 210,
             child: spots.isEmpty
-                ? Center(child: Text('No data yet', style: _style(muted, size: 12)))
+                ? Center(
+                    child: Text('No data yet', style: _style(muted, size: 12)),
+                  )
                 : LineChart(
                     LineChartData(
                       minX: 0,
@@ -409,10 +610,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           strokeWidth: 1,
                           dashArray: const [4, 4],
                         ),
-                        getDrawingVerticalLine: (_) => FlLine(
-                          color: gridColor,
-                          strokeWidth: 1,
-                        ),
+                        getDrawingVerticalLine: (_) =>
+                            FlLine(color: gridColor, strokeWidth: 1),
                       ),
                       extraLinesData: ExtraLinesData(
                         horizontalLines: [
@@ -462,16 +661,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       lineTouchData: LineTouchData(
                         touchTooltipData: LineTouchTooltipData(
-                          getTooltipColor: (_) =>
-                              isDark ? const Color(0xFF3A3A3A) : Colors.white,
+                          getTooltipColor: (_) => comp,
                           getTooltipItems: (touchedSpots) => touchedSpots
-                              .map((spot) => LineTooltipItem(
-                                    '${_timeLabelFromMinutes(data, spot.x)}\n${spot.y.toStringAsFixed(1)}%',
-                                    _style(
-                                      isDark ? Colors.white : Colors.black87,
-                                      size: 12,
-                                    ),
-                                  ))
+                              .map(
+                                (spot) => LineTooltipItem(
+                                  '${_timeLabelFromMinutes(data, spot.x)}\n${spot.y.toStringAsFixed(1)}%',
+                                  _style(text, size: 12),
+                                ),
+                              )
                               .toList(),
                         ),
                       ),
@@ -501,13 +698,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Pump Status Card
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildPumpCard({
-    required bool isDark, required Color comp, required Color text, required Color muted,
-    required bool running, required double flow,
+    required bool isDark,
+    required Color comp,
+    required Color text,
+    required Color muted,
+    required Color btn,
+    required bool running,
+    required double flow,
   }) {
     final bgColor = running
-        ? (isDark ? const Color(0xFF1B2E1B) : const Color(0xFFECF6EC))
+        ? Theme.of(
+            context,
+          ).colorScheme.secondaryContainer.withValues(alpha: isDark ? 0.55 : 1)
         : comp;
-    final statusColor = running ? _dButton : muted;
+    final statusColor = running ? btn : muted;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -516,63 +720,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: running
-              ? _dButton.withValues(alpha: 0.35)
+              ? btn.withValues(alpha: 0.35)
               : text.withValues(alpha: 0.07),
         ),
       ),
-      child: Row(children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('PUMP STATUS',
-                  style: _style(muted, size: 11, letterSpacing: 0.9)),
-              const SizedBox(height: 4),
-              Text(running ? 'RUNNING' : 'IDLE',
-                  style: _style(statusColor, size: 22, weight: FontWeight.bold)),
-              const SizedBox(height: 2),
-              Text(running ? 'Irrigating...' : 'Tap to override',
-                  style: _style(muted, size: 13)),
-              const SizedBox(height: 6),
-              RichText(
-                text: TextSpan(
-                  text: 'Flow: ',
-                  style: _style(muted, size: 13),
-                  children: [
-                    TextSpan(
-                      text: '${flow.toStringAsFixed(2)} L/min',
-                      style: _style(text, size: 13, weight: FontWeight.bold),
-                    ),
-                  ],
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'PUMP STATUS',
+                  style: _style(muted, size: 11, letterSpacing: 0.9),
                 ),
-              ),
-            ],
-          ),
-        ),
-        // Override button
-        GestureDetector(
-          onTap: () {
-            // TODO: state.togglePump()
-          },
-          child: Container(
-            width: 52, height: 52,
-            decoration: BoxDecoration(
-              color: _dButton,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: _dButton.withValues(alpha: 0.45),
-                  blurRadius: 14, offset: const Offset(0, 4),
+                const SizedBox(height: 4),
+                Text(
+                  running ? 'RUNNING' : 'IDLE',
+                  style: _style(statusColor, size: 22, weight: FontWeight.bold),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  running ? 'Irrigating...' : 'Tap to override',
+                  style: _style(muted, size: 13),
+                ),
+                const SizedBox(height: 6),
+                RichText(
+                  text: TextSpan(
+                    text: 'Flow: ',
+                    style: _style(muted, size: 13),
+                    children: [
+                      TextSpan(
+                        text: '${flow.toStringAsFixed(2)} L/min',
+                        style: _style(text, size: 13, weight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            child: Icon(
-              PhosphorIcons.lightning(PhosphorIconsStyle.fill),
-              color: Colors.white, size: 26,
+          ),
+          // Override button
+          GestureDetector(
+            onTap: () {
+              // TODO: state.togglePump()
+            },
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: btn,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: btn.withValues(alpha: 0.45),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(
+                PhosphorIcons.lightning(PhosphorIconsStyle.fill),
+                color: Colors.white,
+                size: 26,
+              ),
             ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 
@@ -580,67 +795,78 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Rain Sensor Card
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildRainCard({
-    required bool isDark, required Color comp, required Color text, required Color muted,
+    required bool isDark,
+    required Color comp,
+    required Color text,
+    required Color muted,
     required bool isRaining,
-  }) =>
-      Container(
-        padding: const EdgeInsets.all(18),
-        decoration: _cardDeco(comp, text),
-        child: Row(children: [
-          Icon(
-            isRaining
-                ? PhosphorIcons.cloudRain(PhosphorIconsStyle.fill)
-                : PhosphorIcons.cloud(PhosphorIconsStyle.fill),
-            color: isRaining ? _cMoisture : muted,
-            size: 38,
-          ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(isRaining ? 'Raining' : 'No Rain',
-                  style: _style(text, size: 16, weight: FontWeight.bold)),
-              const SizedBox(height: 2),
-              Text('Sensor: ${isRaining ? "wet" : "dry"}',
-                  style: _style(muted, size: 13)),
-            ],
-          ),
-        ]),
-      );
+  }) => Container(
+    padding: const EdgeInsets.all(18),
+    decoration: _cardDeco(comp, text),
+    child: Row(
+      children: [
+        Icon(
+          isRaining
+              ? PhosphorIcons.cloudRain(PhosphorIconsStyle.fill)
+              : PhosphorIcons.cloud(PhosphorIconsStyle.fill),
+          color: isRaining ? _cMoisture : muted,
+          size: 38,
+        ),
+        const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isRaining ? 'Raining' : 'No Rain',
+              style: _style(text, size: 16, weight: FontWeight.bold),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Sensor: ${isRaining ? "wet" : "dry"}',
+              style: _style(muted, size: 13),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Active Profile Card
   // TODO: connect state.activeProfile when available in AppStateProvider
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildProfileCard({
-    required bool isDark, required Color comp, required Color text, required Color muted,
-  }) =>
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: _cardDeco(comp, text),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('ACTIVE PROFILE',
-                style: _style(muted, size: 11, letterSpacing: 0.9)),
-            const SizedBox(height: 6),
-            Text('Wheat',
-                style: _style(text, size: 18, weight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _profileRow('Target range', '30% – 70%', text, muted),
-            const SizedBox(height: 5),
-            _profileRow('Kc coefficient', '1.15', text, muted),
-          ],
+    required bool isDark,
+    required Color comp,
+    required Color text,
+    required Color muted,
+  }) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: _cardDeco(comp, text),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'ACTIVE PROFILE',
+          style: _style(muted, size: 11, letterSpacing: 0.9),
         ),
-      );
+        const SizedBox(height: 6),
+        Text('Wheat', style: _style(text, size: 18, weight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        _profileRow('Target range', '30% – 70%', text, muted),
+        const SizedBox(height: 5),
+        _profileRow('Kc coefficient', '1.15', text, muted),
+      ],
+    ),
+  );
 
   Widget _profileRow(String label, String value, Color text, Color muted) =>
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: _style(muted, size: 13)),
-          Text(value,  style: _style(text,  size: 13)),
+          Text(value, style: _style(text, size: 13)),
         ],
       );
 
@@ -648,16 +874,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Temperature & Humidity Dual-Axis Chart
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildTempHumidChart({
-    required bool isDark, required Color comp, required Color text, required Color muted,
-    required List<_ChartPoint> tempData, required List<_ChartPoint> humidData,
+    required bool isDark,
+    required Color comp,
+    required Color text,
+    required Color muted,
+    required List<_ChartPoint> tempData,
+    required List<_ChartPoint> humidData,
     required double currentTemp,
   }) {
-    final gridColor  = text.withValues(alpha: 0.07);
+    final gridColor = text.withValues(alpha: 0.07);
     // Dynamic Y range for temperature axis
-    final tempMin    = (currentTemp - 2).floorToDouble();
-    final tempMax    = (currentTemp + 2).ceilToDouble();
+    final tempMin = (currentTemp - 2).floorToDouble();
+    final tempMax = (currentTemp + 2).ceilToDouble();
     final tempInterval = ((tempMax - tempMin) / 4).ceilToDouble();
-    final allData = [...tempData, ...humidData]..sort((a, b) => a.time.compareTo(b.time));
+    final allData = [...tempData, ...humidData]
+      ..sort((a, b) => a.time.compareTo(b.time));
     final tempRange = (tempMax - tempMin) <= 0 ? 1.0 : (tempMax - tempMin);
     final tempSpots = _timeSeriesToSpots(
       tempData,
@@ -679,18 +910,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Text('Temperature & Humidity', style: _style(text, size: 16, weight: FontWeight.bold, fontFamily: 'Bungee')),
-            const Spacer(),
-            _legendItem(_cTemp,  'Temp C'),
-            const SizedBox(width: 14),
-            _legendItem(_cHumid, 'Humidity %'),
-          ]),
+          Row(
+            children: [
+              Text(
+                'Temperature & Humidity',
+                style: _style(
+                  text,
+                  size: 16,
+                  weight: FontWeight.bold,
+                  fontFamily: 'Bungee',
+                ),
+              ),
+              const Spacer(),
+              _legendItem(_cTemp, 'Temp C'),
+              const SizedBox(width: 14),
+              _legendItem(_cHumid, 'Humidity %'),
+            ],
+          ),
           const SizedBox(height: 14),
           SizedBox(
             height: 240,
             child: allData.isEmpty
-                ? Center(child: Text('No data yet', style: _style(muted, size: 12)))
+                ? Center(
+                    child: Text('No data yet', style: _style(muted, size: 12)),
+                  )
                 : LineChart(
                     LineChartData(
                       minX: 0,
@@ -736,7 +979,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             reservedSize: 34,
                             interval: tempRange / 4,
                             getTitlesWidget: (value, meta) {
-                              final humid = ((value - tempMin) / tempRange) * 100;
+                              final humid =
+                                  ((value - tempMin) / tempRange) * 100;
                               return Text(
                                 humid.clamp(0, 100).toStringAsFixed(0),
                                 style: _style(muted, size: 10),
@@ -758,16 +1002,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       lineTouchData: LineTouchData(
                         touchTooltipData: LineTouchTooltipData(
-                          getTooltipColor: (_) =>
-                              isDark ? const Color(0xFF3A3A3A) : Colors.white,
+                          getTooltipColor: (_) => comp,
                           getTooltipItems: (spots) => spots
-                              .map((spot) => LineTooltipItem(
-                                    '${_timeLabelFromMinutes(allData, spot.x)}\n${spot.y.toStringAsFixed(1)}',
-                                    _style(
-                                      isDark ? Colors.white : Colors.black87,
-                                      size: 12,
-                                    ),
-                                  ))
+                              .map(
+                                (spot) => LineTooltipItem(
+                                  '${_timeLabelFromMinutes(allData, spot.x)}\n${spot.y.toStringAsFixed(1)}',
+                                  _style(text, size: 12),
+                                ),
+                              )
                               .toList(),
                         ),
                       ),
@@ -807,10 +1049,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (data.isEmpty) return const [];
     final baseTime = minTime ?? data.first.time;
     return data
-        .map((point) => FlSpot(
-              point.time.difference(baseTime).inMinutes.toDouble(),
-              mapY != null ? mapY(point.value) : point.value,
-            ))
+        .map(
+          (point) => FlSpot(
+            point.time.difference(baseTime).inMinutes.toDouble(),
+            mapY != null ? mapY(point.value) : point.value,
+          ),
+        )
         .toList();
   }
 
@@ -824,39 +1068,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return '$hh:$mm';
   }
 
-  TextStyle _style(Color color, {
+  TextStyle _style(
+    Color color, {
     double size = 14,
     FontWeight weight = FontWeight.normal,
     double? letterSpacing,
     String fontFamily = 'Quicksand',
-  }) =>
-      TextStyle(
-        color: color, fontSize: size, fontWeight: weight,
-        fontFamily: fontFamily, letterSpacing: letterSpacing,
-        decoration: TextDecoration.none,
-      );
+  }) => TextStyle(
+    color: color,
+    fontSize: size,
+    fontWeight: weight,
+    fontFamily: fontFamily,
+    letterSpacing: letterSpacing,
+    decoration: TextDecoration.none,
+  );
 
   BoxDecoration _cardDeco(Color comp, Color text) => BoxDecoration(
-        color: comp,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: text.withValues(alpha: 0.07)),
-      );
+    color: comp,
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(color: text.withValues(alpha: 0.07)),
+  );
 
   Widget _legendItem(Color color, String label) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 18, height: 2.5,
-            decoration: BoxDecoration(
-              color: color, borderRadius: BorderRadius.circular(2)),
-          ),
-          const SizedBox(width: 5),
-          Text(label, style: TextStyle(
-            color: color, fontSize: 11,
-            fontFamily: 'Quicksand', decoration: TextDecoration.none,
-          )),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 18,
+        height: 2.5,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+      const SizedBox(width: 5),
+      Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontFamily: 'Quicksand',
+          decoration: TextDecoration.none,
+        ),
+      ),
+    ],
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -873,16 +1128,26 @@ class _SensorCard extends StatelessWidget {
 
   const _SensorCard({
     required this.isDark,
-    required this.comp, required this.text, required this.muted,
+    required this.comp,
+    required this.text,
+    required this.muted,
     required this.accentColor,
-    required this.label, required this.value, required this.unit,
-    required this.icon, required this.sparkData, required this.gaugeMax,
+    required this.label,
+    required this.value,
+    required this.unit,
+    required this.icon,
+    required this.sparkData,
+    required this.gaugeMax,
   });
 
   @override
   Widget build(BuildContext context) {
-    final numValue = (double.tryParse(value) ?? 0.0).clamp(0.0, gaugeMax).toDouble();
-    final progress = gaugeMax <= 0 ? 0.0 : (numValue / gaugeMax).clamp(0.0, 1.0);
+    final numValue = (double.tryParse(value) ?? 0.0)
+        .clamp(0.0, gaugeMax)
+        .toDouble();
+    final progress = gaugeMax <= 0
+        ? 0.0
+        : (numValue / gaugeMax).clamp(0.0, 1.0);
     final trackColor = text.withValues(alpha: isDark ? 0.1 : 0.07);
     final sparkSpots = sparkData
         .map((point) => FlSpot(point.x.toDouble(), point.y))
@@ -900,7 +1165,8 @@ class _SensorCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.04),
-            blurRadius: 14, offset: const Offset(0, 4),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -912,7 +1178,8 @@ class _SensorCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 36, height: 36,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: accentColor,
                   borderRadius: BorderRadius.circular(10),
@@ -920,12 +1187,17 @@ class _SensorCard extends StatelessWidget {
                 child: Icon(icon, color: Colors.white, size: 20),
               ),
               const Spacer(),
-              Text(label,
-                  style: TextStyle(
-                    color: muted, fontSize: 10, letterSpacing: 0.6,
-                    fontFamily: 'Quicksand', fontWeight: FontWeight.w600,
-                    decoration: TextDecoration.none,
-                  )),
+              Text(
+                label,
+                style: TextStyle(
+                  color: muted,
+                  fontSize: 10,
+                  letterSpacing: 0.6,
+                  fontFamily: 'Quicksand',
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.none,
+                ),
+              ),
             ],
           ),
           SizedBox(
@@ -959,19 +1231,25 @@ class _SensorCard extends StatelessWidget {
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(value,
-                          style: TextStyle(
-                            color: text, fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: 'Quicksand',
-                            decoration: TextDecoration.none,
-                          )),
-                      Text(unit,
-                          style: TextStyle(
-                            color: muted, fontSize: 12,
-                            fontFamily: 'Quicksand',
-                            decoration: TextDecoration.none,
-                          )),
+                      Text(
+                        value,
+                        style: TextStyle(
+                          color: text,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Quicksand',
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                      Text(
+                        unit,
+                        style: TextStyle(
+                          color: muted,
+                          fontSize: 12,
+                          fontFamily: 'Quicksand',
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
                     ],
                   ),
                 ],

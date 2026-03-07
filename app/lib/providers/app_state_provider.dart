@@ -9,10 +9,44 @@ class AppStateProvider extends ChangeNotifier {
   Map<String, dynamic> _latestSensorData = {};
   List<Map<String, dynamic>> _sensorHistory = [];
   
+  // User profile and settings
+  Map<String, dynamic>? _userProfile;
+  bool _isSaving = false;
+  String? _saveError;
+  
+  // Device and connectivity status
+  bool _isDeviceOnline = false;
+  bool _isApiConnected = false;
+  DateTime? _deviceLastSeen;
+  String? _deviceName;
+  
   bool get isLoading => _isLoading;
   String? get deviceId => _deviceId;
   Map<String, dynamic> get latestSensorData => _latestSensorData;
   List<Map<String, dynamic>> get sensorHistory => _sensorHistory;
+  
+  // Getters for user profile
+  Map<String, dynamic>? get userProfile => _userProfile;
+  bool get isSaving => _isSaving;
+  String? get saveError => _saveError;
+  
+  // Getters for connectivity
+  bool get isDeviceOnline => _isDeviceOnline;
+  bool get isApiConnected => _isApiConnected;
+  DateTime? get deviceLastSeen => _deviceLastSeen;
+  String? get deviceName => _deviceName;
+  
+  // Convenience getters for profile fields
+  String get username => _userProfile?['username'] ?? '';
+  String get tempUnit => _userProfile?['temp_unit'] ?? 'celsius';
+  String get volumeUnit => _userProfile?['volume_unit'] ?? 'litres';
+  String get timezone => _userProfile?['timezone'] ?? 'UTC';
+  bool get pumpAlerts => _userProfile?['pump_alerts'] ?? true;
+  bool get soilMoistureAlerts => _userProfile?['soil_moisture_alerts'] ?? true;
+  bool get weatherAlerts => _userProfile?['weather_alerts'] ?? true;
+  bool get fertigationReminders => _userProfile?['fertigation_reminders'] ?? true;
+  bool get deviceOfflineAlerts => _userProfile?['device_offline_alerts'] ?? true;
+  bool get weeklySummary => _userProfile?['weekly_summary'] ?? false;
 
   // ── Subscription references (to prevent memory leaks) ─────────────────────
   late final StreamSubscription<AuthState> _authSub;
@@ -30,6 +64,11 @@ class AppStateProvider extends ChangeNotifier {
         _deviceId = null;
         _latestSensorData = {};
         _sensorHistory = [];
+        _userProfile = null;
+        _isDeviceOnline = false;
+        _isApiConnected = false;
+        _deviceLastSeen = null;
+        _deviceName = null;
         _isLoading = false;
         notifyListeners();
       }
@@ -61,7 +100,9 @@ class AppStateProvider extends ChangeNotifier {
 
     final session = Supabase.instance.client.auth.currentSession;
     if (session != null) {
+      await fetchUserProfile();
       await _fetchUserDevices(session.user.id);
+      await checkDeviceStatus();
     }
 
     _isLoading = false;
@@ -164,6 +205,186 @@ class AppStateProvider extends ChangeNotifier {
   // The GoRouterRefreshStream in router.dart handles the redirect to /login.
   Future<void> signOut() async {
     await Supabase.instance.client.auth.signOut();
+  }
+  
+  // ── User Profile Methods ──────────────────────────────────────────────────
+  Future<void> fetchUserProfile() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    
+    try {
+      final response = await Supabase.instance.client
+          .from('user_profiles')
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+      
+      _userProfile = response;
+      
+      if (_userProfile == null) {
+        await Supabase.instance.client.from('user_profiles').insert({
+          'user_id': userId,
+        });
+        _userProfile = await Supabase.instance.client
+            .from('user_profiles')
+            .select()
+            .eq('user_id', userId)
+            .single();
+      }
+      
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[DEBUG] Error fetching user profile: $e');
+    }
+  }
+  
+  Future<void> updateUsername(String username) async {
+    await _updateProfileField('username', username);
+  }
+  
+  Future<void> updateTempUnit(String unit) async {
+    await _updateProfileField('temp_unit', unit);
+  }
+  
+  Future<void> updateVolumeUnit(String unit) async {
+    await _updateProfileField('volume_unit', unit);
+  }
+  
+  Future<void> updateTimezone(String tz) async {
+    await _updateProfileField('timezone', tz);
+  }
+  
+  Future<void> updateNotificationSetting(String field, bool value) async {
+    await _updateProfileField(field, value);
+  }
+  
+  Future<void> _updateProfileField(String field, dynamic value) async {
+    if (_userProfile == null) return;
+    
+    _isSaving = true;
+    _saveError = null;
+    notifyListeners();
+    
+    try {
+      await Supabase.instance.client
+          .from('user_profiles')
+          .update({field: value, 'updated_at': DateTime.now().toIso8601String()})
+          .eq('user_id', Supabase.instance.client.auth.currentUser!.id);
+      
+      _userProfile![field] = value;
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      _saveError = e.toString();
+      notifyListeners();
+      debugPrint('[DEBUG] Error updating profile field $field: $e');
+    }
+  }
+  
+  Future<void> updatePassword(String currentPassword, String newPassword) async {
+    _isSaving = true;
+    _saveError = null;
+    notifyListeners();
+    
+    try {
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser == null || currentUser.email == null) {
+        throw Exception('No user logged in');
+      }
+      
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: currentUser.email!,
+        password: currentPassword,
+      );
+      
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+      
+      _isSaving = false;
+      notifyListeners();
+    } on AuthException catch (e) {
+      _isSaving = false;
+      _saveError = e.message;
+      notifyListeners();
+      rethrow;
+    } catch (e) {
+      _isSaving = false;
+      _saveError = e.toString();
+      notifyListeners();
+      rethrow;
+    }
+  }
+  
+  Future<void> deleteAccount() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    
+    _isSaving = true;
+    notifyListeners();
+    
+    try {
+      await Supabase.instance.client.rpc('delete_account_cascade', params: {
+        'uid': userId,
+      });
+      
+      await signOut();
+    } catch (e) {
+      _isSaving = false;
+      _saveError = e.toString();
+      notifyListeners();
+      debugPrint('[DEBUG] Error deleting account: $e');
+      rethrow;
+    }
+  }
+  
+  // ── Device Status Methods ────────────────────────────────────────────────
+  Future<void> checkDeviceStatus() async {
+    try {
+      await Supabase.instance.client.from('devices').select('id').limit(1);
+      _isApiConnected = true;
+    } catch (e) {
+      _isApiConnected = false;
+    }
+    
+    final deviceId = _deviceId;
+    if (deviceId != null) {
+      try {
+        final deviceInfo = await Supabase.instance.client
+            .from('devices')
+            .select('name, status')
+            .eq('id', deviceId)
+            .single();
+        
+        _deviceName = deviceInfo['name'] ?? 'Unknown Device';
+        
+        final latest = await Supabase.instance.client
+            .from('sensor_readings')
+            .select('recorded_at')
+            .eq('device_id', deviceId)
+            .order('recorded_at', ascending: false)
+            .limit(1)
+            .maybeSingle();
+        
+        if (latest != null) {
+          _deviceLastSeen = DateTime.parse(latest['recorded_at']);
+          _isDeviceOnline = DateTime.now().difference(_deviceLastSeen!).inMinutes < 5;
+        } else {
+          _isDeviceOnline = false;
+          _deviceLastSeen = null;
+        }
+      } catch (e) {
+        _isDeviceOnline = false;
+        _deviceName = null;
+      }
+    }
+    
+    notifyListeners();
+  }
+  
+  Future<void> refreshDeviceStatus() async {
+    await checkDeviceStatus();
   }
 }
 

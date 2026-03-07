@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
+import 'providers/app_state_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/irrigation_screen.dart';
@@ -88,8 +89,36 @@ class AppLayoutScaffold extends StatelessWidget {
       appBar: AppBar(
         title: Text('Smart Irrigation System F', style: TextStyle(fontFamily: 'Bungee', fontSize: 20, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
         actions: [
+          Consumer<AppStateProvider>(
+            builder: (context, provider, _) {
+              final username = provider.username;
+              if (username == null || username.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.person_outline,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                    const SizedBox(width: 4),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 120),
+                      child: Text(
+                        username,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           IconButton(
-            icon: Icon(Icons.notifications_outlined),
+            icon: const Icon(Icons.notifications_outlined),
             onPressed: () => context.go('/alerts'),
             tooltip: 'Alerts',
           ),
@@ -118,53 +147,82 @@ class AppLayoutScaffold extends StatelessWidget {
           Padding(
             padding: EdgeInsets.fromLTRB(28, 24, 16, 10),
             child: Text('SISF',
-                style: TextStyle(fontFamily: 'Bungee', fontSize: 22, color: Color(0xFF347433), fontWeight: FontWeight.bold)),
+                style: TextStyle(fontFamily: 'Bungee', fontSize: 22, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
+          ),
+          Consumer<AppStateProvider>(
+            builder: (context, provider, _) {
+              final username = provider.username;
+              if (username == null || username.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(28, 16, 16, 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.person_outline,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        username,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
           // NavigationDrawerDestination is the M3 drawer item widget
           NavigationDrawerDestination(
-            icon: Icon(Icons.home_outlined, color: Color(0xFF000000)),
-            selectedIcon: Icon(Icons.home, color: Color(0xFF000000)),
-            label: Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF000000))),
+            icon: Icon(Icons.home_outlined, color: Theme.of(context).colorScheme.onSurface),
+            selectedIcon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+            label: Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.water_drop_outlined, color: Color(0xFF000000)),
-            selectedIcon: Icon(Icons.water_drop, color: Color(0xFF000000)),
-            label: Text('Irrigation', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF000000))),
+            icon: Icon(Icons.water_drop_outlined, color: Theme.of(context).colorScheme.onSurface),
+            selectedIcon: Icon(Icons.water_drop, color: Theme.of(context).colorScheme.onSurface),
+            label: Text('Irrigation', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.power_settings_new_outlined, color: Color(0xFF000000)),
-            selectedIcon: Icon(Icons.power_settings_new, color: Color(0xFF000000)),
-            label: Text('Pump Control', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF000000))),
+            icon: Icon(Icons.power_settings_new_outlined, color: Theme.of(context).colorScheme.onSurface),
+            selectedIcon: Icon(Icons.power_settings_new, color: Theme.of(context).colorScheme.onSurface),
+            label: Text('Pump Control', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.cloud_outlined, color: Color(0xFF000000)),
-            selectedIcon: Icon(Icons.cloud, color: Color(0xFF000000)),
-            label: Text('Weather', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF000000))),
+            icon: Icon(Icons.cloud_outlined, color: Theme.of(context).colorScheme.onSurface),
+            selectedIcon: Icon(Icons.cloud, color: Theme.of(context).colorScheme.onSurface),
+            label: Text('Weather', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.eco_outlined, color: Color(0xFF000000)),
-            selectedIcon: Icon(Icons.eco, color: Color(0xFF000000)),
-            label: Text('Crop Profiles', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF000000))),
+            icon: Icon(Icons.eco_outlined, color: Theme.of(context).colorScheme.onSurface),
+            selectedIcon: Icon(Icons.eco, color: Theme.of(context).colorScheme.onSurface),
+            label: Text('Crop Profiles', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.bar_chart_outlined, color: Color(0xFF000000)),
-            selectedIcon: Icon(Icons.bar_chart, color: Color(0xFF000000)),
-            label: Text('Water Usage', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF000000))),
+            icon: Icon(Icons.bar_chart_outlined, color: Theme.of(context).colorScheme.onSurface),
+            selectedIcon: Icon(Icons.bar_chart, color: Theme.of(context).colorScheme.onSurface),
+            label: Text('Water Usage', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.science_outlined, color: Color(0xFF000000)),
-            selectedIcon: Icon(Icons.science, color: Color(0xFF000000)),
-            label: Text('Fertigation', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF000000))),
+            icon: Icon(Icons.science_outlined, color: Theme.of(context).colorScheme.onSurface),
+            selectedIcon: Icon(Icons.science, color: Theme.of(context).colorScheme.onSurface),
+            label: Text('Fertigation', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.notifications_outlined, color: Color(0xFF000000)),
-            selectedIcon: Icon(Icons.notifications, color: Color(0xFF000000)),
-            label: Text('Alerts', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF000000))),
+            icon: Icon(Icons.notifications_outlined, color: Theme.of(context).colorScheme.onSurface),
+            selectedIcon: Icon(Icons.notifications, color: Theme.of(context).colorScheme.onSurface),
+            label: Text('Alerts', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.settings_outlined, color: Color(0xFF000000)),
-            selectedIcon: Icon(Icons.settings, color: Color(0xFF000000)),
-            label: Text('Settings', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF000000))),
+            icon: Icon(Icons.settings_outlined, color: Theme.of(context).colorScheme.onSurface),
+            selectedIcon: Icon(Icons.settings, color: Theme.of(context).colorScheme.onSurface),
+            label: Text('Settings', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
           ),
         ],
       ),
