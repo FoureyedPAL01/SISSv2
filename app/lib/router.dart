@@ -13,6 +13,7 @@ import 'screens/water_usage_screen.dart';
 import 'screens/fertigation_screen.dart';
 import 'screens/alerts_screen.dart';
 import 'screens/settings_screen.dart';
+import 'theme.dart';
 import 'dart:async';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
@@ -74,6 +75,7 @@ class AppLayoutScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String location = GoRouterState.of(context).uri.path;
+    final colors = Theme.of(context).colorScheme;
 
     // Map route → bottom nav index (only the 5 main tabs)
     int currentIndex = switch (location) {
@@ -84,15 +86,35 @@ class AppLayoutScaffold extends StatelessWidget {
       var s when s.startsWith('/settings')   => 4,
       _                 => 0,
     };
+    int drawerSelectedIndex = switch (location) {
+      '/'               => 0,
+      var s when s.startsWith('/irrigation') => 1,
+      var s when s.startsWith('/pump')       => 2,
+      var s when s.startsWith('/weather')    => 3,
+      var s when s.startsWith('/crops')      => 4,
+      var s when s.startsWith('/water')      => 5,
+      var s when s.startsWith('/fertigation') => 6,
+      var s when s.startsWith('/alerts')     => 7,
+      var s when s.startsWith('/settings')   => 8,
+      _                 => 0,
+    };
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Smart Irrigation System F', style: TextStyle(fontFamily: 'Bungee', fontSize: 20, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
+        title: Text(
+          'Smart Irrigation System F',
+          style: TextStyle(
+            fontFamily: 'Bungee',
+            fontSize: 20,
+            color: colors.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         actions: [
           Consumer<AppStateProvider>(
             builder: (context, provider, _) {
               final username = provider.username;
-              if (username == null || username.isEmpty) return const SizedBox.shrink();
+              if (username.isEmpty) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(right: 4),
                 child: Row(
@@ -101,7 +123,7 @@ class AppLayoutScaffold extends StatelessWidget {
                     Icon(
                       Icons.person_outline,
                       size: 18,
-                      color: Theme.of(context).colorScheme.onSurface,
+                      color: colors.onSurface,
                     ),
                     const SizedBox(width: 4),
                     ConstrainedBox(
@@ -128,7 +150,7 @@ class AppLayoutScaffold extends StatelessWidget {
 
       // ── M3 NavigationDrawer ─────────────────────────────────────────────
       drawer: NavigationDrawer(
-        selectedIndex: currentIndex,
+        selectedIndex: drawerSelectedIndex,
         onDestinationSelected: (index) {
           Navigator.pop(context); // close drawer
           switch (index) {
@@ -147,12 +169,12 @@ class AppLayoutScaffold extends StatelessWidget {
           Padding(
             padding: EdgeInsets.fromLTRB(28, 24, 16, 10),
             child: Text('SISF',
-                style: TextStyle(fontFamily: 'Bungee', fontSize: 22, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
+                style: TextStyle(fontFamily: 'Bungee', fontSize: 22, color: colors.primary, fontWeight: FontWeight.bold)),
           ),
           Consumer<AppStateProvider>(
             builder: (context, provider, _) {
               final username = provider.username;
-              if (username == null || username.isEmpty) return const SizedBox.shrink();
+              if (username.isEmpty) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.fromLTRB(28, 16, 16, 8),
                 child: Row(
@@ -160,7 +182,7 @@ class AppLayoutScaffold extends StatelessWidget {
                     Icon(
                       Icons.person_outline,
                       size: 20,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: colors.primary,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -169,7 +191,7 @@ class AppLayoutScaffold extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: colors.primary,
                         ),
                       ),
                     ),
@@ -180,49 +202,121 @@ class AppLayoutScaffold extends StatelessWidget {
           ),
           // NavigationDrawerDestination is the M3 drawer item widget
           NavigationDrawerDestination(
-            icon: Icon(Icons.home_outlined, color: Theme.of(context).colorScheme.onSurface),
-            selectedIcon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
-            label: Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+            icon: Icon(Icons.home_outlined, color: colors.onSurface),
+            selectedIcon: const Icon(Icons.home, color: Colors.white),
+            label: Text(
+              'Dashboard',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: drawerSelectedIndex == 0
+                    ? Colors.white
+                    : colors.onSurface,
+              ),
+            ),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.water_drop_outlined, color: Theme.of(context).colorScheme.onSurface),
-            selectedIcon: Icon(Icons.water_drop, color: Theme.of(context).colorScheme.onSurface),
-            label: Text('Irrigation', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+            icon: Icon(Icons.water_drop_outlined, color: colors.onSurface),
+            selectedIcon: const Icon(Icons.water_drop, color: Colors.white),
+            label: Text(
+              'Irrigation',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: drawerSelectedIndex == 1
+                    ? Colors.white
+                    : colors.onSurface,
+              ),
+            ),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.power_settings_new_outlined, color: Theme.of(context).colorScheme.onSurface),
-            selectedIcon: Icon(Icons.power_settings_new, color: Theme.of(context).colorScheme.onSurface),
-            label: Text('Pump Control', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+            icon: Icon(Icons.power_settings_new_outlined, color: colors.onSurface),
+            selectedIcon: const Icon(Icons.power_settings_new, color: Colors.white),
+            label: Text(
+              'Pump Control',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: drawerSelectedIndex == 2
+                    ? Colors.white
+                    : colors.onSurface,
+              ),
+            ),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.cloud_outlined, color: Theme.of(context).colorScheme.onSurface),
-            selectedIcon: Icon(Icons.cloud, color: Theme.of(context).colorScheme.onSurface),
-            label: Text('Weather', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+            icon: Icon(Icons.cloud_outlined, color: colors.onSurface),
+            selectedIcon: const Icon(Icons.cloud, color: Colors.white),
+            label: Text(
+              'Weather',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: drawerSelectedIndex == 3
+                    ? Colors.white
+                    : colors.onSurface,
+              ),
+            ),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.eco_outlined, color: Theme.of(context).colorScheme.onSurface),
-            selectedIcon: Icon(Icons.eco, color: Theme.of(context).colorScheme.onSurface),
-            label: Text('Crop Profiles', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+            icon: Icon(Icons.eco_outlined, color: colors.onSurface),
+            selectedIcon: const Icon(Icons.eco, color: Colors.white),
+            label: Text(
+              'Crop Profiles',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: drawerSelectedIndex == 4
+                    ? Colors.white
+                    : colors.onSurface,
+              ),
+            ),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.bar_chart_outlined, color: Theme.of(context).colorScheme.onSurface),
-            selectedIcon: Icon(Icons.bar_chart, color: Theme.of(context).colorScheme.onSurface),
-            label: Text('Water Usage', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+            icon: Icon(Icons.bar_chart_outlined, color: colors.onSurface),
+            selectedIcon: const Icon(Icons.bar_chart, color: Colors.white),
+            label: Text(
+              'Water Usage',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: drawerSelectedIndex == 5
+                    ? Colors.white
+                    : colors.onSurface,
+              ),
+            ),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.science_outlined, color: Theme.of(context).colorScheme.onSurface),
-            selectedIcon: Icon(Icons.science, color: Theme.of(context).colorScheme.onSurface),
-            label: Text('Fertigation', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+            icon: Icon(Icons.science_outlined, color: colors.onSurface),
+            selectedIcon: const Icon(Icons.science, color: Colors.white),
+            label: Text(
+              'Fertigation',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: drawerSelectedIndex == 6
+                    ? Colors.white
+                    : colors.onSurface,
+              ),
+            ),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.notifications_outlined, color: Theme.of(context).colorScheme.onSurface),
-            selectedIcon: Icon(Icons.notifications, color: Theme.of(context).colorScheme.onSurface),
-            label: Text('Alerts', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+            icon: Icon(Icons.notifications_outlined, color: colors.onSurface),
+            selectedIcon: const Icon(Icons.notifications, color: Colors.white),
+            label: Text(
+              'Alerts',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: drawerSelectedIndex == 7
+                    ? Colors.white
+                    : colors.onSurface,
+              ),
+            ),
           ),
           NavigationDrawerDestination(
-            icon: Icon(Icons.settings_outlined, color: Theme.of(context).colorScheme.onSurface),
-            selectedIcon: Icon(Icons.settings, color: Theme.of(context).colorScheme.onSurface),
-            label: Text('Settings', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+            icon: Icon(Icons.settings_outlined, color: colors.onSurface),
+            selectedIcon: const Icon(Icons.settings, color: Colors.white),
+            label: Text(
+              'Settings',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: drawerSelectedIndex == 8
+                    ? Colors.white
+                    : colors.onSurface,
+              ),
+            ),
           ),
         ],
       ),
@@ -230,48 +324,108 @@ class AppLayoutScaffold extends StatelessWidget {
       body: child,
 
       // ── M3 NavigationBar (replaces BottomNavigationBar) ─────────────────
-      // Key M3 differences:
-      // - Pill-shaped indicator behind selected icon
-      // - No shift animation, labels always visible
-      // - Uses colorScheme.secondaryContainer for indicator
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: currentIndex,
-        onDestinationSelected: (index) {
-          switch (index) {
-            case 0: context.go('/');           break;
-            case 1: context.go('/irrigation'); break;
-            case 2: context.go('/pump');       break;
-            case 3: context.go('/weather');    break;
-            case 4: context.go('/settings');   break;
-          }
-        },
-        destinations: const [
-          NavigationDestination(
-            icon:         Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
+      bottomNavigationBar: Container(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+        child: Row(
+          children: [
+            _BottomNavItem(
+              label: 'Home',
+              icon: Icons.home_outlined,
+              selectedIcon: Icons.home,
+              selected: currentIndex == 0,
+              onTap: () => context.go('/'),
+            ),
+            _BottomNavItem(
+              label: 'Irrigate',
+              icon: Icons.water_drop_outlined,
+              selectedIcon: Icons.water_drop,
+              selected: currentIndex == 1,
+              onTap: () => context.go('/irrigation'),
+            ),
+            _BottomNavItem(
+              label: 'Pump',
+              icon: Icons.power_settings_new_outlined,
+              selectedIcon: Icons.power_settings_new,
+              selected: currentIndex == 2,
+              onTap: () => context.go('/pump'),
+            ),
+            _BottomNavItem(
+              label: 'Weather',
+              icon: Icons.cloud_outlined,
+              selectedIcon: Icons.cloud,
+              selected: currentIndex == 3,
+              onTap: () => context.go('/weather'),
+            ),
+            _BottomNavItem(
+              label: 'Settings',
+              icon: Icons.settings_outlined,
+              selectedIcon: Icons.settings,
+              selected: currentIndex == 4,
+              onTap: () => context.go('/settings'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomNavItem extends StatelessWidget {
+  const _BottomNavItem({
+    required this.label,
+    required this.icon,
+    required this.selectedIcon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+              decoration: BoxDecoration(
+                color: selected ? AppTheme.deepLeaf : Colors.transparent,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    selected ? selectedIcon : icon,
+                    color: selected ? Colors.white : colors.onSurface,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: selected ? Colors.white : colors.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          NavigationDestination(
-            icon:         Icon(Icons.water_drop_outlined),
-            selectedIcon: Icon(Icons.water_drop),
-            label: 'Irrigate',
-          ),
-          NavigationDestination(
-            icon:         Icon(Icons.power_settings_new_outlined),
-            selectedIcon: Icon(Icons.power_settings_new),
-            label: 'Pump',
-          ),
-          NavigationDestination(
-            icon:         Icon(Icons.cloud_outlined),
-            selectedIcon: Icon(Icons.cloud),
-            label: 'Weather',
-          ),
-          NavigationDestination(
-            icon:         Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -290,4 +444,3 @@ class GoRouterRefreshStream extends ChangeNotifier {
     super.dispose();
   }
 }
-

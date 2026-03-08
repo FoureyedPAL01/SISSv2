@@ -35,7 +35,7 @@ class StatusBadge extends StatelessWidget {
             label ?? (isOnline ? 'Online' : 'Offline'),
             style: TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.bold,
               color: isOnline
                   ? colors.onPrimaryContainer
                   : colors.onErrorContainer,
@@ -74,10 +74,16 @@ class DeviceHealthTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sectionColor =
+        Theme.of(context).textTheme.headlineMedium?.color ??
+            Theme.of(context).colorScheme.onSurface;
     return ListTile(
-      leading: const Icon(Icons.memory),
-      title: Text(deviceName),
-      subtitle: Text('Last seen: ${_formatLastSeen()}'),
+      leading: Icon(Icons.memory, color: sectionColor),
+      title: Text(deviceName, style: TextStyle(color: sectionColor)),
+      subtitle: Text(
+        'Last seen: ${_formatLastSeen()}',
+        style: TextStyle(color: sectionColor),
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -85,7 +91,7 @@ class DeviceHealthTile extends StatelessWidget {
           if (onRefresh != null) ...[
             const SizedBox(width: 8),
             IconButton(
-              icon: const Icon(Icons.refresh, size: 20),
+              icon: Icon(Icons.refresh, size: 20, color: sectionColor),
               onPressed: onRefresh,
               tooltip: 'Refresh status',
             ),
@@ -109,12 +115,15 @@ class ApiConnectivityTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final sectionColor =
+        Theme.of(context).textTheme.headlineMedium?.color ??
+            Theme.of(context).colorScheme.onSurface;
     return ListTile(
       leading: Icon(
         isConnected ? Icons.cloud_done : Icons.cloud_off,
         color: isConnected ? colors.primary : colors.error,
       ),
-      title: Text(serviceName),
+      title: Text(serviceName, style: TextStyle(color: sectionColor)),
       trailing: StatusBadge(
         isOnline: isConnected,
         label: isConnected ? 'Connected' : 'Disconnected',

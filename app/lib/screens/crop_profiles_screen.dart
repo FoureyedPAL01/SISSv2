@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../theme.dart';
 import '../providers/app_state_provider.dart';
 
 class CropProfilesScreen extends StatefulWidget {
@@ -101,6 +102,8 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final appColors = Theme.of(context).extension<AppColors>()!;
     return Scaffold(
       body: Form(
         key: _formKey,
@@ -126,7 +129,7 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(PhosphorIcons.plant(), color: Colors.green),
+                        Icon(PhosphorIcons.plant(), color: appColors.successGreen),
                         const SizedBox(width: 8),
                         Text("Dry Threshold (%)", style: Theme.of(context).textTheme.titleLarge),
                       ],
@@ -138,7 +141,8 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
                       max: 100,
                       divisions: 20,
                       label: "${_dryThreshold.round()}%",
-                      activeColor: Colors.brown.shade400,
+                      activeColor: colors.primary,
+                      inactiveColor: colors.secondary,
                       onChanged: (val) => setState(() => _dryThreshold = val),
                     ),
                     Center(

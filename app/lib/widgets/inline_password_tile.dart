@@ -110,19 +110,25 @@ class _InlinePasswordTileState extends State<InlinePasswordTile> {
   @override
   Widget build(BuildContext context) {
     final displayError = _localError ?? widget.errorMessage;
+    final sectionColor =
+        Theme.of(context).textTheme.headlineMedium?.color ??
+            Theme.of(context).colorScheme.onSurface;
 
     return Column(
       children: [
         ListTile(
-          leading: Icon(widget.icon),
-          title: Text(widget.title),
+          leading: Icon(widget.icon, color: sectionColor),
+          title: Text(widget.title, style: TextStyle(color: sectionColor)),
           trailing: widget.isLoading || _isSaving
               ? const SizedBox(
                   width: 24,
                   height: 24,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : Icon(_isExpanded ? Icons.expand_less : Icons.expand_more),
+              : Icon(
+                  _isExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: sectionColor,
+                ),
           onTap: widget.isLoading || _isSaving
               ? null
               : () {

@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state_provider.dart';
 import '../utils/unit_converter.dart';
+import '../theme.dart';
 
 class WaterUsageScreen extends StatelessWidget {
   const WaterUsageScreen({super.key});
@@ -11,6 +12,7 @@ class WaterUsageScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final appColors = Theme.of(context).extension<AppColors>()!;
     return Consumer<AppStateProvider>(
       builder: (context, appState, _) {
         final volumeUnit = appState.volumeUnit;
@@ -100,13 +102,13 @@ class WaterUsageScreen extends StatelessWidget {
                               LineChartBarData(
                                 spots: spots,
                                 isCurved: true,
-                                color: colors.primary,
+                                color: appColors.infoBlue,
                                 barWidth: 4,
                                 isStrokeCapRound: true,
                                 dotData: const FlDotData(show: false),
                                 belowBarData: BarAreaData(
                                   show: true,
-                                  color: colors.primary.withValues(alpha: 0.2),
+                                  color: appColors.infoBlueBackground,
                                 ),
                               ),
                             ],

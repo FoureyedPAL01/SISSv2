@@ -1,412 +1,384 @@
-// lib/theme.dart
-
+// Fresh Greens Theme
+// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // The single seed color — M3 generates everything else from this
-  // Green chosen to match the irrigation / agriculture theme
-  static const Color _seed = Color(0xFF2DD4BF);
+  // Palette constants
+  static const Color mist = Color(0xFFD8F3DC);
+  static const Color paleMint = Color(0xFFB7E4C7);
+  static const Color softMint = Color(0xFF95D5B2);
+  static const Color lightLeaf = Color(0xFF74C69D);
+  static const Color freshLeaf = Color(0xFF52B788);
+  static const Color teal = Color(0xFF40916C);
+  static const Color deepLeaf = Color(0xFF2D6A4F);
+  static const Color pine = Color(0xFF1B4332);
+  static const Color night = Color(0xFF081C15);
+  static const Color accentRed = Color(0xFF9B2226);
 
-  // ── Light theme ───────────────────────────────────────────────────────────
-  static ThemeData get lightTheme {
-    // fromSeed generates a full M3 ColorScheme from one color.
-    // All surface, container, and tonal colors are derived automatically.
-    final colorScheme =
-        ColorScheme.fromSeed(
-          seedColor: _seed,
-          brightness: Brightness.light,
-        ).copyWith(
-          primary: const Color(0xFF2DD4BF),
-          onPrimary: const Color(0xFF003B39),
-          secondary: const Color(0xFF99F6E4),
-          onSecondary: const Color(0xFF004F4A),
-          tertiary: const Color(0xFFF59E0B),
-          background: const Color(0xFFF2FFFD),
-          onBackground: const Color(0xFF033B38),
-          surface: const Color(0xFFFFFFFF),
-          onSurface: const Color(0xFF033B38),
-        );
-
-    return ThemeData(
-      useMaterial3: true, // enforce M3 everywhere
-      colorScheme: colorScheme, // hand the generated scheme to the theme
-      fontFamily: 'Quicksand', // Default font for all text
-      // ── AppBar ─────────────────────────────────────────────────────────
-      // M3 AppBar uses surface color with no elevation by default
-      appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        elevation: 0,
-        scrolledUnderElevation: 1, // subtle shadow only when scrolled
-        centerTitle: false,
-      ),
-
-      // ── Cards ──────────────────────────────────────────────────────────
-      // M3 has three card variants: elevated, filled, outlined.
-      // Default (elevated) uses surfaceContainerLow + slight elevation.
-      cardTheme: CardThemeData(
-        elevation: 1,
-        // M3 uses surfaceContainerLow automatically — no need to hardcode color
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12), // M3 spec: 12dp for cards
-        ),
-        margin: const EdgeInsets.only(bottom: 12),
-      ),
-
-      // ── NavigationBar (M3 bottom nav) ───────────────────────────────────
-      // Replaces BottomNavigationBar.
-      // M3 NavigationBar uses surfaceContainer background by default.
-      navigationBarTheme: NavigationBarThemeData(
-        indicatorColor: colorScheme.secondaryContainer,
-        iconTheme: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return IconThemeData(color: colorScheme.onSurface);
-          }
-          return IconThemeData(color: colorScheme.onSurface);
-        }),
-        labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return TextStyle(
-              color: colorScheme.onSurface,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            );
-          }
-          return TextStyle(
-            color: colorScheme.onSurface,
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
-          );
-        }),
-      ),
-
-      // ── NavigationDrawer (M3 side drawer) ───────────────────────────────
-      navigationDrawerTheme: NavigationDrawerThemeData(
-        indicatorColor: colorScheme.secondaryContainer,
-        indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28), // M3 pill shape
-        ),
-      ),
-
-      // ── Input fields ────────────────────────────────────────────────────
-      // M3 uses filled style by default
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: colorScheme.surfaceContainerHighest,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none, // filled fields have no border at rest
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.primary, width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.error, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
-      ),
-
-      // ── Buttons ─────────────────────────────────────────────────────────
-      // M3 has: FilledButton, FilledButton.tonal, OutlinedButton, TextButton
-      // ElevatedButton still works but FilledButton is the M3 primary action.
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 48), // M3 touch target minimum
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(100), // M3 uses fully rounded
-          ),
-        ),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          minimumSize: const Size(0, 48),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(100),
-          ),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, 48),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(100),
-          ),
-        ),
-      ),
-
-      // ── Chips ───────────────────────────────────────────────────────────
-      chipTheme: ChipThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-
-      // ── Dialogs ─────────────────────────────────────────────────────────
-      dialogTheme: DialogThemeData(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28), // M3 dialog corner radius
-        ),
-        elevation: 3,
-      ),
-
-      // ── Bottom sheet ────────────────────────────────────────────────────
-      bottomSheetTheme: const BottomSheetThemeData(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        showDragHandle: true,
-      ),
-
-      // ── Snackbar ─────────────────────────────────────────────────────────
-      snackBarTheme: SnackBarThemeData(
-        behavior: SnackBarBehavior.floating, // M3 uses floating snackbars
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-
-      // ── Typography ──────────────────────────────────────────────────────
-      // M3 type scale: displayLarge → labelSmall (15 styles)
-      // Do NOT manually override colors here — let colorScheme handle it
-      textTheme: const TextTheme(
-        headlineLarge: TextStyle(
-          fontFamily: 'Bungee',
-          fontWeight: FontWeight.w700,
-          fontSize: 32,
-        ),
-        headlineMedium: TextStyle(
-          fontFamily: 'Bungee',
-          fontWeight: FontWeight.w700,
-          fontSize: 24,
-        ),
-        headlineSmall: TextStyle(
-          fontFamily: 'Bungee',
-          fontWeight: FontWeight.w600,
-          fontSize: 20,
-        ),
-        titleLarge: TextStyle(
-          fontFamily: 'Bungee',
-          fontWeight: FontWeight.w600,
-          fontSize: 18,
-        ),
-        titleMedium: TextStyle(
-          fontFamily: 'Merriweather',
-          fontWeight: FontWeight.w500,
-          fontSize: 16,
-        ),
-        titleSmall: TextStyle(
-          fontFamily: 'Merriweather',
-          fontWeight: FontWeight.w500,
-          fontSize: 14,
-        ),
-        bodyLarge: TextStyle(fontFamily: 'Quicksand', fontSize: 16),
-        bodyMedium: TextStyle(fontFamily: 'Quicksand', fontSize: 14),
-        bodySmall: TextStyle(fontFamily: 'Quicksand', fontSize: 12),
-        labelLarge: TextStyle(
-          fontFamily: 'Quicksand',
-          fontWeight: FontWeight.w500,
-          fontSize: 14,
-        ),
-        labelMedium: TextStyle(
-          fontFamily: 'Quicksand',
-          fontWeight: FontWeight.w500,
-          fontSize: 12,
-        ),
-        labelSmall: TextStyle(
-          fontFamily: 'Quicksand',
-          fontWeight: FontWeight.w500,
-          fontSize: 11,
-        ),
-      ),
+  static ThemeData get theme {
+    final colorScheme = const ColorScheme.light(
+      primary: teal,
+      onPrimary: Colors.white,
+      secondary: freshLeaf,
+      onSecondary: night,
+      surface: mist,          // swapped: cards/charts now use former screen bg
+      onSurface: night,
+      background: paleMint,   // swapped: screen bg now paleMint
+      onBackground: night,
+      error: accentRed,
+      onError: Colors.white,
+      outline: softMint,
+      surfaceTint: Colors.transparent,
     );
-  }
-
-  // ── Dark theme ────────────────────────────────────────────────────────────
-  static ThemeData get darkTheme {
-    final colorScheme =
-        ColorScheme.fromSeed(
-          seedColor: _seed,
-          brightness: Brightness.dark,
-        ).copyWith(
-          primary: const Color(0xFF2DD4BF),
-          onPrimary: const Color(0xFF003B39),
-          secondary: const Color(0xFF99F6E4),
-          onSecondary: const Color(0xFF004F4A),
-          tertiary: const Color(0xFFF59E0B),
-          background: const Color(0xFF001A19),
-          onBackground: const Color(0xFFB8F3EE),
-          surface: const Color(0xFF002F2D),
-          onSurface: const Color(0xFF70F7ED),
-        );
 
     return ThemeData(
       useMaterial3: true,
-      colorScheme: colorScheme,
+      brightness: Brightness.light,
       fontFamily: 'Quicksand',
+      primaryColor: teal,
+      scaffoldBackgroundColor: paleMint,
+      colorScheme: colorScheme,
+      iconTheme: const IconThemeData(color: pine, size: 24),
 
-      appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: paleMint,
+        foregroundColor: night,
         elevation: 0,
-        scrolledUnderElevation: 1,
         centerTitle: false,
+        iconTheme: IconThemeData(color: night),
+        actionsIconTheme: IconThemeData(color: night),
+        titleTextStyle: TextStyle(
+          color: night,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
       ),
 
-      cardTheme: CardThemeData(
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.only(bottom: 12),
+      drawerTheme: const DrawerThemeData(
+        backgroundColor: mist,
       ),
-
-      navigationBarTheme: NavigationBarThemeData(
-        indicatorColor: colorScheme.secondaryContainer,
+      navigationDrawerTheme: NavigationDrawerThemeData(
+        backgroundColor: mist,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: deepLeaf,
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return IconThemeData(color: colorScheme.onSurface);
+            return const IconThemeData(color: Colors.white);
           }
-          return IconThemeData(color: colorScheme.onSurface);
+          return const IconThemeData(color: pine);
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return TextStyle(
-              color: colorScheme.onSurface,
+            return const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            );
+          }
+          return const TextStyle(
+            color: night,
+            fontWeight: FontWeight.bold,
+          );
+        }),
+      ),
+
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: paleMint,
+        selectedItemColor: Colors.white,
+        unselectedItemColor: night,
+        type: BottomNavigationBarType.fixed,
+        elevation: 0,
+      ),
+
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: paleMint,
+        elevation: 0,
+        indicatorColor: deepLeaf,
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: Colors.white);
+          }
+          return const IconThemeData(color: night);
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const TextStyle(
+              color: Colors.white,
               fontWeight: FontWeight.bold,
               fontSize: 12,
             );
           }
-          return TextStyle(
-            color: colorScheme.onSurface,
+          return const TextStyle(
+            color: night,
             fontWeight: FontWeight.bold,
             fontSize: 12,
           );
         }),
       ),
 
-      navigationDrawerTheme: NavigationDrawerThemeData(
-        indicatorColor: colorScheme.secondaryContainer,
-        indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28),
+      cardTheme: CardThemeData(
+        color: mist,
+        shadowColor: deepLeaf.withValues(alpha: 0.2),
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: softMint, width: 0.5),
         ),
+        margin: const EdgeInsets.only(bottom: 16),
       ),
 
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: colorScheme.surfaceContainerHighest,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.primary, width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.error, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: teal,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: softMint.withValues(alpha: 0.4),
+          disabledForegroundColor: night.withValues(alpha: 0.5),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          elevation: 0,
         ),
       ),
 
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 48),
+          backgroundColor: freshLeaf,
+          foregroundColor: night,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(100),
+            borderRadius: BorderRadius.circular(8),
           ),
+          elevation: 0,
         ),
       ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          minimumSize: const Size(0, 48),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(100),
-          ),
-        ),
-      ),
+
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, 48),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(100),
-          ),
+          foregroundColor: deepLeaf,
+          side: const BorderSide(color: deepLeaf, width: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
+      ),
+
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: teal,
+        ),
+      ),
+
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: teal,
+        foregroundColor: Colors.white,
+        elevation: 4,
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: mist.withValues(alpha: 0.85), // swapped with screen bg
+        hintStyle: TextStyle(color: deepLeaf.withValues(alpha: 0.6)),
+        labelStyle: const TextStyle(color: deepLeaf),
+        prefixIconColor: deepLeaf,
+        suffixIconColor: deepLeaf,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: softMint),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: softMint),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: teal, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: accentRed),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: accentRed, width: 2),
+        ),
+        errorStyle: const TextStyle(color: accentRed),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+
+      sliderTheme: SliderThemeData(
+        activeTrackColor: teal,
+        inactiveTrackColor: softMint.withValues(alpha: 0.5),
+        thumbColor: deepLeaf,
+        overlayColor: deepLeaf.withValues(alpha: 0.15),
+        valueIndicatorColor: deepLeaf,
+        valueIndicatorTextStyle: const TextStyle(color: Colors.white),
+      ),
+
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return teal;
+          return Colors.transparent;
+        }),
+        checkColor: WidgetStateProperty.all(Colors.white),
+        side: const BorderSide(color: deepLeaf, width: 1.5),
+      ),
+
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return teal;
+          return deepLeaf;
+        }),
+      ),
+
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return teal;
+          return deepLeaf.withValues(alpha: 0.6);
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return teal.withValues(alpha: 0.35);
+          }
+          return deepLeaf.withValues(alpha: 0.2);
+        }),
+      ),
+
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: teal,
+        circularTrackColor: softMint.withValues(alpha: 0.3),
+        linearTrackColor: softMint.withValues(alpha: 0.3),
+        linearMinHeight: 4,
       ),
 
       chipTheme: ChipThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        backgroundColor: mist,
+        selectedColor: teal,
+        labelStyle: const TextStyle(color: night),
+        secondaryLabelStyle: const TextStyle(color: night),
+        side: const BorderSide(color: deepLeaf),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+
+      dividerTheme: DividerThemeData(
+        color: deepLeaf.withValues(alpha: 0.25),
+        thickness: 1,
+        space: 1,
       ),
 
       dialogTheme: DialogThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        elevation: 3,
+        backgroundColor: paleMint,
+        titleTextStyle: const TextStyle(
+          color: night,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+        contentTextStyle:
+            const TextStyle(color: deepLeaf, fontSize: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
 
       bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: mist,
+        modalBackgroundColor: mist,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        showDragHandle: true,
       ),
 
-      snackBarTheme: SnackBarThemeData(
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      listTileTheme: ListTileThemeData(
+        tileColor: Colors.transparent,
+        iconColor: deepLeaf,
+        textColor: night,
+        subtitleTextStyle: TextStyle(color: deepLeaf.withValues(alpha: 0.7)),
+      ),
+
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: deepLeaf,
+          hoverColor: teal.withValues(alpha: 0.1),
+        ),
       ),
 
       textTheme: const TextTheme(
-        headlineLarge: TextStyle(
-          fontFamily: 'Bungee',
-          fontWeight: FontWeight.w700,
-          fontSize: 32,
-        ),
-        headlineMedium: TextStyle(
-          fontFamily: 'Bungee',
-          fontWeight: FontWeight.w700,
-          fontSize: 24,
-        ),
-        headlineSmall: TextStyle(
-          fontFamily: 'Bungee',
-          fontWeight: FontWeight.w600,
-          fontSize: 20,
-        ),
-        titleLarge: TextStyle(
-          fontFamily: 'Bungee',
-          fontWeight: FontWeight.w600,
-          fontSize: 18,
-        ),
-        titleMedium: TextStyle(
-          fontFamily: 'Merriweather',
-          fontWeight: FontWeight.w500,
-          fontSize: 16,
-        ),
-        titleSmall: TextStyle(
-          fontFamily: 'Merriweather',
-          fontWeight: FontWeight.w500,
-          fontSize: 14,
-        ),
-        bodyLarge: TextStyle(fontFamily: 'Quicksand', fontSize: 16),
-        bodyMedium: TextStyle(fontFamily: 'Quicksand', fontSize: 14),
-        bodySmall: TextStyle(fontFamily: 'Quicksand', fontSize: 12),
-        labelLarge: TextStyle(
-          fontFamily: 'Quicksand',
-          fontWeight: FontWeight.w500,
-          fontSize: 14,
-        ),
-        labelMedium: TextStyle(
-          fontFamily: 'Quicksand',
-          fontWeight: FontWeight.w500,
-          fontSize: 12,
-        ),
-        labelSmall: TextStyle(
-          fontFamily: 'Quicksand',
-          fontWeight: FontWeight.w500,
-          fontSize: 11,
-        ),
+        displayLarge: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 57),
+        displayMedium: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 45),
+        displaySmall: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 36),
+
+        headlineLarge: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 32),
+        headlineMedium: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 24),
+        headlineSmall: TextStyle(color: pine, fontWeight: FontWeight.bold, fontSize: 20),
+
+        titleLarge: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 18),
+        titleMedium: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 16),
+        titleSmall: TextStyle(color: pine, fontWeight: FontWeight.bold, fontSize: 14),
+
+        bodyLarge: TextStyle(color: night, fontSize: 16),
+        bodyMedium: TextStyle(color: pine, fontSize: 14),
+        bodySmall: TextStyle(color: Color(0xB01B4332), fontSize: 12),
+
+        labelLarge: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 14),
+        labelMedium: TextStyle(color: pine, fontSize: 12),
+        labelSmall: TextStyle(color: Color(0xB01B4332), fontSize: 11),
       ),
+    ).copyWith(
+      // keep ThemeExtension for compatibility
+      extensions: const <ThemeExtension<dynamic>>[
+        AppColors.light,
+      ],
+    );
+  }
+
+  // Backwards compatibility getters
+  static ThemeData get lightTheme => theme;
+  static ThemeData get darkTheme => theme;
+}
+
+@immutable
+class AppColors extends ThemeExtension<AppColors> {
+  final Color successGreen;
+  final Color infoBlue;
+  final Color infoBlueDark;
+  final Color infoBlueBackground;
+
+  const AppColors({
+    required this.successGreen,
+    required this.infoBlue,
+    required this.infoBlueDark,
+    required this.infoBlueBackground,
+  });
+
+  static const light = AppColors(
+    successGreen: AppTheme.teal,
+    infoBlue: AppTheme.freshLeaf,
+    infoBlueDark: AppTheme.deepLeaf,
+    infoBlueBackground: AppTheme.paleMint,
+  );
+
+  @override
+  AppColors copyWith({
+    Color? successGreen,
+    Color? infoBlue,
+    Color? infoBlueDark,
+    Color? infoBlueBackground,
+  }) {
+    return AppColors(
+      successGreen: successGreen ?? this.successGreen,
+      infoBlue: infoBlue ?? this.infoBlue,
+      infoBlueDark: infoBlueDark ?? this.infoBlueDark,
+      infoBlueBackground: infoBlueBackground ?? this.infoBlueBackground,
+    );
+  }
+
+  @override
+  AppColors lerp(ThemeExtension<AppColors>? other, double t) {
+    if (other is! AppColors) return this;
+    return AppColors(
+      successGreen: Color.lerp(successGreen, other.successGreen, t) ?? successGreen,
+      infoBlue: Color.lerp(infoBlue, other.infoBlue, t) ?? infoBlue,
+      infoBlueDark: Color.lerp(infoBlueDark, other.infoBlueDark, t) ?? infoBlueDark,
+      infoBlueBackground: Color.lerp(infoBlueBackground, other.infoBlueBackground, t) ??
+          infoBlueBackground,
     );
   }
 }

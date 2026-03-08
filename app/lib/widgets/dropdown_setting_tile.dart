@@ -23,10 +23,15 @@ class DropdownSettingTile<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sectionColor =
+        Theme.of(context).textTheme.headlineMedium?.color ??
+            Theme.of(context).colorScheme.onSurface;
     return ListTile(
-      leading: _buildLeading(),
-      title: Text(title),
-      subtitle: subtitle != null ? Text(subtitle!) : null,
+      leading: _buildLeading(sectionColor),
+      title: Text(title, style: TextStyle(color: sectionColor)),
+      subtitle: subtitle != null
+          ? Text(subtitle!, style: TextStyle(color: sectionColor))
+          : null,
       trailing: SizedBox(
         width: 140,
         child: SegmentedButton<T>(
@@ -45,16 +50,19 @@ class DropdownSettingTile<T> extends StatelessWidget {
                   }
                 },
           showSelectedIcon: false,
-          style: const ButtonStyle(
+          style: ButtonStyle(
             visualDensity: VisualDensity.compact,
-            textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12)),
+            textStyle: const WidgetStatePropertyAll(
+              TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+            foregroundColor: WidgetStatePropertyAll(sectionColor),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildLeading() {
+  Widget _buildLeading(Color sectionColor) {
     if (saveStatus == SaveStatus.saving) {
       return const SizedBox(
         width: 24,
@@ -65,6 +73,6 @@ class DropdownSettingTile<T> extends StatelessWidget {
         ),
       );
     }
-    return Icon(icon);
+    return Icon(icon, color: sectionColor);
   }
 }

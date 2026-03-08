@@ -14,14 +14,15 @@ class ReadOnlyTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textColor =
+        Theme.of(context).textTheme.headlineMedium?.color ??
+            Theme.of(context).colorScheme.onSurface;
     return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
+      leading: Icon(icon, color: textColor),
+      title: Text(title, style: TextStyle(color: textColor)),
       subtitle: Text(
         value,
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
+        style: TextStyle(color: textColor),
       ),
     );
   }

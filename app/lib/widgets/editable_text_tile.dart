@@ -127,7 +127,7 @@ class _EditableTextTileState extends State<EditableTextTile> {
                     color: widget.value.isEmpty
                         ? Theme.of(context).colorScheme.primary
                         : Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],

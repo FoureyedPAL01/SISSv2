@@ -36,7 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<AppStateProvider>();
       provider.checkDeviceStatus();
-      _usernameController.text = provider.username ?? '';
+      _usernameController.text = provider.username;
     });
   }
 
@@ -85,7 +85,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _cancelEditUsername() {
     final provider = context.read<AppStateProvider>();
     setState(() {
-      _usernameController.text = provider.username ?? '';
+      _usernameController.text = provider.username;
       _usernameError = null;
       _isEditingUsername = false;
     });
@@ -113,21 +113,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildUsernameRow(BuildContext context, AppStateProvider provider) {
     final colors = Theme.of(context).colorScheme;
+    final settingsColor =
+        Theme.of(context).textTheme.headlineMedium?.color ?? colors.onSurface;
     if (!_isEditingUsername) {
       return ListTile(
-        leading: Icon(PhosphorIcons.user(), size: 20),
+        leading: Icon(PhosphorIcons.user(), size: 20, color: settingsColor),
         title: Text(
           'Username',
-          style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+          style: TextStyle(fontSize: 12, color: settingsColor),
         ),
         subtitle: Text(
-          provider.username ?? '—',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          provider.username,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.normal,
+            color: settingsColor,
+          ),
         ),
         trailing: IconButton(
-          icon: Icon(PhosphorIcons.pencilSimple(), size: 20),
+          icon: Icon(
+            PhosphorIcons.pencilSimple(),
+            size: 20,
+            color: settingsColor,
+          ),
           tooltip: 'Edit username',
-          onPressed: () => _startEditingUsername(provider.username ?? ''),
+          onPressed: () => _startEditingUsername(provider.username),
         ),
       );
     }
@@ -199,6 +209,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final user = Supabase.instance.client.auth.currentUser;
     final provider = context.watch<AppStateProvider>();
     final colors = Theme.of(context).colorScheme;
+    final settingsColor =
+        Theme.of(context).textTheme.headlineMedium?.color ?? colors.onSurface;
 
     return Scaffold(
       body: ListView(
@@ -211,6 +223,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontFamily: 'Bungee',
                 fontSize: 24,
+                color: settingsColor,
               ),
             ),
           ),
@@ -220,7 +233,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leadingIcon: Icon(
               PhosphorIcons.user(),
               size: 20,
-              color: colors.primary,
+              color: settingsColor,
             ),
             children: [
               _buildUsernameRow(context, provider),
@@ -237,7 +250,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leadingIcon: Icon(
               PhosphorIcons.globe(),
               size: 20,
-              color: colors.primary,
+              color: settingsColor,
             ),
             children: [
               DropdownSettingTile<String>(
@@ -275,7 +288,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leadingIcon: Icon(
               PhosphorIcons.bell(),
               size: 20,
-              color: colors.primary,
+              color: settingsColor,
             ),
             children: [
               ToggleSettingTile(
@@ -358,7 +371,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leadingIcon: Icon(
               PhosphorIcons.lock(),
               size: 20,
-              color: colors.primary,
+              color: settingsColor,
             ),
             children: [
               InlinePasswordTile(
@@ -377,7 +390,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leadingIcon: Icon(
               PhosphorIcons.hardDrives(),
               size: 20,
-              color: colors.primary,
+              color: settingsColor,
             ),
             children: [
               DeviceHealthTile(
@@ -404,7 +417,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Text(
               "Account",
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: colors.primary,
+                color: settingsColor,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -416,8 +429,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: FilledButton.icon(
               onPressed: () => _signOut(context),
               style: FilledButton.styleFrom(
-                foregroundColor: colors.error,
-                backgroundColor: colors.errorContainer,
+                backgroundColor: colors.error.withValues(alpha: 0.85),
+                foregroundColor: Colors.white,
               ),
               icon: const Icon(Icons.logout),
               label: const Text("Sign Out"),

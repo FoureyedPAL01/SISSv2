@@ -22,7 +22,7 @@ class _DeleteAccountButtonState extends State<DeleteAccountButton> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: SizedBox(
         width: double.infinity,
-        child: OutlinedButton.icon(
+        child: FilledButton.icon(
           onPressed: widget.isLoading
               ? null
               : () => _showDeleteConfirmation(context),
@@ -32,13 +32,14 @@ class _DeleteAccountButtonState extends State<DeleteAccountButton> {
                   height: 18,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: colors.error,
+                    color: Colors.white,
                   ),
                 )
-              : Icon(Icons.delete_forever, color: colors.error),
-          label: Text('Delete Account', style: TextStyle(color: colors.error)),
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(color: colors.error),
+              : const Icon(Icons.delete_forever, color: Colors.white),
+          label: const Text('Delete Account', style: TextStyle(color: Colors.white)),
+          style: FilledButton.styleFrom(
+            backgroundColor: colors.error,
+            disabledBackgroundColor: colors.error.withValues(alpha: 0.6),
             padding: const EdgeInsets.symmetric(vertical: 12),
           ),
         ),
@@ -128,7 +129,7 @@ class _DeleteConfirmDialogState extends State<_DeleteConfirmDialog> {
                     'Type "DELETE" below to confirm',
                     style: TextStyle(
                       color: colors.onErrorContainer,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
@@ -159,6 +160,7 @@ class _DeleteConfirmDialogState extends State<_DeleteConfirmDialog> {
               : null,
           style: FilledButton.styleFrom(
             backgroundColor: colors.error,
+            foregroundColor: Colors.white,
             disabledBackgroundColor: colors.error.withValues(alpha: 0.5),
           ),
           child: const Text('Delete Account'),

@@ -21,16 +21,21 @@ class ToggleSettingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sectionColor =
+        Theme.of(context).textTheme.headlineMedium?.color ??
+            Theme.of(context).colorScheme.onSurface;
     return SwitchListTile(
-      secondary: _buildLeading(),
-      title: Text(title),
-      subtitle: subtitle != null ? Text(subtitle!) : null,
+      secondary: _buildLeading(sectionColor),
+      title: Text(title, style: TextStyle(color: sectionColor)),
+      subtitle: subtitle != null
+          ? Text(subtitle!, style: TextStyle(color: sectionColor))
+          : null,
       value: value,
       onChanged: saveStatus == SaveStatus.saving ? null : onChanged,
     );
   }
 
-  Widget _buildLeading() {
+  Widget _buildLeading(Color sectionColor) {
     if (saveStatus == SaveStatus.saving) {
       return const SizedBox(
         width: 24,
@@ -47,6 +52,6 @@ class ToggleSettingTile extends StatelessWidget {
     if (saveStatus == SaveStatus.saved) {
       return const Icon(Icons.check_circle, color: Colors.green);
     }
-    return Icon(icon);
+    return Icon(icon, color: sectionColor);
   }
 }

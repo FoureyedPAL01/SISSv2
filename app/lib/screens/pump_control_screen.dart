@@ -80,14 +80,20 @@ class _PumpControlScreenState extends State<PumpControlScreen> {
                 onPressed: _isChanging ? null : () => _togglePump(deviceId, "pump_on"),
                 icon: const Icon(Icons.water_drop),
                 label: const Text("TURN PUMP ON"),
-                style: FilledButton.styleFrom(padding: const EdgeInsets.all(24)),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.all(24),
+                  backgroundColor: Color(0xFFA1DD70),
+                ),
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: _isChanging ? null : () => _togglePump(deviceId, "pump_off"),
                 icon: const Icon(Icons.stop_circle),
                 label: const Text("TURN PUMP OFF"),
-                style: FilledButton.styleFrom(padding: const EdgeInsets.all(24)),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.all(24),
+                  backgroundColor: Color(0xFFEE4E4E),
+                ),
               ),
             ]
           ],
@@ -96,4 +102,3 @@ class _PumpControlScreenState extends State<PumpControlScreen> {
     );
   }
 }
-

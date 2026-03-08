@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'dart:convert';
 import '../providers/app_state_provider.dart';
 import '../utils/unit_converter.dart';
+import '../theme.dart';
 
 class WeatherScreen extends StatefulWidget {
   const WeatherScreen({super.key});
@@ -184,6 +185,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
   Widget _buildBody(BuildContext context, String tempUnit) {
     final colors = Theme.of(context).colorScheme;
+    final appColors = Theme.of(context).extension<AppColors>()!;
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -231,7 +233,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Lat: $_lat  •  Lon: $_lon',
+          'Lat: $_lat  |  Lon: $_lon',
           style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
         ),
         const SizedBox(height: 16),
@@ -269,8 +271,8 @@ class _WeatherScreenState extends State<WeatherScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'High ${UnitConverter.formatTemp(w['temp_max'] as double, tempUnit).replaceAll('°C', '°').replaceAll('°F', '°')}  '
-                  'Low ${UnitConverter.formatTemp(w['temp_min'] as double, tempUnit).replaceAll('°C', '°').replaceAll('°F', '°')}',
+                  'High ${UnitConverter.formatTemp(w['temp_max'] as double, tempUnit)}  '
+                  'Low ${UnitConverter.formatTemp(w['temp_min'] as double, tempUnit)}',
                   style: TextStyle(color: colors.onSurfaceVariant),
                 ),
                 const SizedBox(height: 16),
@@ -352,13 +354,13 @@ class _WeatherScreenState extends State<WeatherScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '${(day['max'] as double).toStringAsFixed(0)}° / '
-                    '${(day['min'] as double).toStringAsFixed(0)}°',
+                    '${(day['max'] as double).toStringAsFixed(0)}� / '
+                    '${(day['min'] as double).toStringAsFixed(0)}�',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    '🌧 ${day['rain_pct']}%',
-                    style: TextStyle(fontSize: 11, color: colors.primary),
+                    'Rain ${day['rain_pct']}%',
+                    style: TextStyle(fontSize: 11, color: appColors.infoBlueDark),
                   ),
                 ],
               ),

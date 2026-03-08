@@ -27,9 +27,9 @@ class _LoginScreenState extends State<LoginScreen>
 
   // ─── Color Palette ───────────────────────────────────────────────────────────
   // ─── Computed getters ────────────────────────────────────────────────────────
-  Color get _bg => _colors.background;
+  Color get _bg => Theme.of(context).scaffoldBackgroundColor;
   Color get _component => _colors.surface;
-  Color get _text => _colors.onBackground;
+  Color get _text => _colors.onSurface;
   Color get _button => _colors.primary;
   Color get _highlight => _colors.primary;
   Color get _border => _text.withValues(alpha: 0.18);
@@ -54,7 +54,7 @@ class _LoginScreenState extends State<LoginScreen>
   // Smaller, non-bold text (for hints, buttons)
   TextStyle _tsSmall({
     double size = 14,
-    FontWeight weight = FontWeight.normal,
+    FontWeight weight = FontWeight.bold,
     Color? color,
     double? letterSpacing,
   }) => TextStyle(
@@ -159,7 +159,7 @@ class _LoginScreenState extends State<LoginScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: _ts(size: 15, weight: FontWeight.w600)),
+        Text(label, style: _ts(size: 15, weight: FontWeight.bold)),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
@@ -224,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen>
         label,
         style: _tsSmall(
           size: 15,
-          weight: FontWeight.w600,
+          weight: FontWeight.bold,
           color: _colors.onPrimary,
         ),
       ),
@@ -368,7 +368,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
             unselectedLabelStyle: TextStyle(
               fontFamily: 'Quicksand',
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.bold,
               fontSize: 15,
             ),
             labelColor: _text,
