@@ -14,6 +14,12 @@ class AppStateProvider extends ChangeNotifier {
   bool _isSaving = false;
   String? _saveError;
   
+  // Active crop profile
+  Map<String, dynamic>? _activeCropProfile;
+  
+  // Water usage data
+  List<Map<String, dynamic>> _weeklyWaterUsage = [];
+  
   // Device and connectivity status
   bool _isDeviceOnline = false;
   bool _isApiConnected = false;
@@ -29,6 +35,12 @@ class AppStateProvider extends ChangeNotifier {
   Map<String, dynamic>? get userProfile => _userProfile;
   bool get isSaving => _isSaving;
   String? get saveError => _saveError;
+  
+  // Getter for active crop profile
+  Map<String, dynamic>? get activeCropProfile => _activeCropProfile;
+  
+  // Getter for weekly water usage
+  List<Map<String, dynamic>> get weeklyWaterUsage => _weeklyWaterUsage;
   
   // Getters for connectivity
   bool get isDeviceOnline => _isDeviceOnline;
@@ -65,6 +77,7 @@ class AppStateProvider extends ChangeNotifier {
         _latestSensorData = {};
         _sensorHistory = [];
         _userProfile = null;
+        _activeCropProfile = null;
         _isDeviceOnline = false;
         _isApiConnected = false;
         _deviceLastSeen = null;
@@ -103,6 +116,8 @@ class AppStateProvider extends ChangeNotifier {
       await fetchUserProfile();
       await _fetchUserDevices(session.user.id);
       await checkDeviceStatus();
+      await _fetchActiveCropProfile();
+      await fetchWeeklyWaterUsage();
     }
 
     _isLoading = false;
@@ -200,13 +215,90 @@ class AppStateProvider extends ChangeNotifier {
     debugPrint('[DEBUG] Subscribed to realtime channel');
   }
 
+  Future<void> _fetchActiveCropProfile() async {
+    if (_deviceId == null) return;
+
+    try {
+      // Get the crop_profile_id from the device
+      final device = await Supabase.instance.client
+          .from('devices')
+          .select('crop_profile_id')
+          .eq('id', _deviceId!)
+          .maybeSingle();
+
+      final profileId = device?['crop_profile_id'];
+      if (profileId == null) {
+        _activeCropProfile = null;
+        notifyListeners();
+        return;
+      }
+
+      // Fetch the crop profile details
+      final profile = await Supabase.instance.client
+          .from('crop_profiles')
+          .select()
+          .eq('id', profileId as int)
+          .maybeSingle();
+
+      _activeCropProfile = profile;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[DEBUG] Error fetching active crop profile: $e');
+    }
+  }
+
   // ── Sign Out ──────────────────────────────────────────────────────────────
   // Call this from SettingsScreen. The auth listener above handles state clear.
   // The GoRouterRefreshStream in router.dart handles the redirect to /login.
   Future<void> signOut() async {
     await Supabase.instance.client.auth.signOut();
   }
-  
+
+  // ── Crop Profile Methods ─────────────────────────────────────────────────
+  Future<void> refreshCropProfile() async {
+    await _fetchActiveCropProfile();
+  }
+
+  // ── Water Usage Methods ─────────────────────────────────────────────────
+  Future<void> fetchWeeklyWaterUsage() async {
+    if (_deviceId == null) return;
+
+    try {
+      // Use Supabase functions or direct REST API
+      // Try fetching from water_usage table directly via Supabase
+      final now = DateTime.now();
+      final weekAgo = now.subtract(const Duration(days: 7));
+      
+      final response = await Supabase.instance.client
+          .from('water_usage')
+          .select('date, total_liters')
+          .eq('device_id', _deviceId!)
+          .gte('date', weekAgo.toIso8601String().split('T')[0])
+          .order('date', ascending: true);
+
+      if (response.isNotEmpty) {
+        _weeklyWaterUsage = (response as List).map((e) => {
+          'date': e['date'] ?? '',
+          'total_liters': (e['total_liters'] as num?)?.toDouble() ?? 0.0,
+        }).toList();
+      } else {
+        // Return empty data for each day of the week
+        _weeklyWaterUsage = List.generate(7, (i) {
+          final day = weekAgo.add(Duration(days: i));
+          return {
+            'date': day.toIso8601String().split('T')[0],
+            'total_liters': 0.0,
+          };
+        });
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[DEBUG] Error fetching water usage: $e');
+      // Return empty data on error
+      _weeklyWaterUsage = [];
+    }
+  }
+   
   // ── User Profile Methods ──────────────────────────────────────────────────
   Future<void> fetchUserProfile() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;

@@ -87,10 +87,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         // ── Extract sensor data ────────────────────────────────────────────
         final d = state.latestSensorData;
-        final moisture = (d['soil_moisture'] as num? ?? 0).toDouble();
-        final tempC = (d['temperature_c'] as num? ?? 28).toDouble();
-        final humidity = (d['humidity'] as num? ?? 0).toDouble();
-        final flowLpm = (d['flow_litres'] as num? ?? 0).toDouble();
+        final moisture = (d['soil_moisture'] as num? ?? 20).toDouble();
+        final tempC = (d['temperature_c'] as num? ?? 20).toDouble();
+        final humidity = (d['humidity'] as num? ?? 20).toDouble();
+        final flowLpm = (d['flow_litres'] as num? ?? 20).toDouble();
 
         final tempUnit = state.tempUnit;
         final tempDisplay = UnitConverter.formatTemp(tempC, tempUnit);
@@ -161,6 +161,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               isRaining: isRaining,
                               pumpRunning: pumpRunning,
                               flowRate: flowLpm,
+                              cropProfile: state.activeCropProfile,
                             )
                           : _buildStatusRowMobile(
                               isDark: isDark,
@@ -171,6 +172,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               isRaining: isRaining,
                               pumpRunning: pumpRunning,
                               flowRate: flowLpm,
+                              cropProfile: state.activeCropProfile,
                             ),
                       const SizedBox(height: 16),
 
@@ -234,6 +236,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required double flowRate,
     String? tempDisplay,
   }) {
+    // Split "82.4°F" → value="82.4", unit="°F"
+    // If no tempDisplay, fall back to raw °C
+    final _tempValue = tempDisplay != null
+        ? RegExp(r'^([\d.]+)(°[CF])$').firstMatch(tempDisplay!)?.group(1)
+            ?? tempDisplay!
+        : tempC.toStringAsFixed(1);
+
+    final _tempUnit = tempDisplay != null
+        ? RegExp(r'^([\d.]+)(°[CF])$').firstMatch(tempDisplay!)?.group(2)
+            ?? ''
+        : '°C';
     final cards = <_SensorCard>[
       _SensorCard(
         isDark: isDark,
@@ -255,8 +268,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         muted: muted,
         label: 'TEMPERATURE',
         numericValue: tempC,
-        displayValue: tempDisplay ?? tempC.toStringAsFixed(1),
-        unit: tempDisplay != null ? '' : '°C',
+        displayValue: _tempValue,
+        unit: _tempUnit,
         accentColor: _cTemp,
         icon: PhosphorIcons.thermometer(),
         gaugeMax: 50,
@@ -329,6 +342,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required bool isRaining,
     required bool pumpRunning,
     required double flowRate,
+    Map<String, dynamic>? cropProfile,
   }) => IntrinsicHeight(
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -359,6 +373,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             comp: comp,
             text: text,
             muted: muted,
+            cropProfile: cropProfile,
           ),
         ),
       ],
@@ -377,6 +392,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required bool isRaining,
     required bool pumpRunning,
     required double flowRate,
+    Map<String, dynamic>? cropProfile,
   }) => Column(
     children: [
       _buildPumpCard(
@@ -395,12 +411,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         isRaining: isRaining,
       ),
       const SizedBox(height: 12),
-      _buildProfileCard(isDark: isDark, comp: comp, text: text, muted: muted),
+      _buildProfileCard(isDark: isDark, comp: comp, text: text, muted: muted, cropProfile: cropProfile),
     ],
   );
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Pump Status Card — no icon, color-coded bg, only label + status
+  // Pump Status Card — with icon that changes color based on status
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildPumpCard({
     required bool isDark,
@@ -409,41 +425,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required Color muted,
     required bool running,
   }) {
-    // Pastel green for running, pastel red for idle
-    const idleBg = Color(0xFFFFD6D6);      // pastel red
-    const runningBg = Color(0xFFCDF5D8);   // pastel green
-    const idleText = Color(0xFF888888);    // grey
-    const runningText = Color(0xFF1A1A1A); // near-black
-
-    final bgColor = running ? runningBg : idleBg;
-    final statusTextColor = running ? runningText : idleText;
-    final labelColor = running
-        ? runningText.withValues(alpha: 0.55)
-        : idleText.withValues(alpha: 0.75);
-    final borderColor = running
-        ? const Color(0xFF4CAF50).withValues(alpha: 0.35)
-        : const Color(0xFFE57373).withValues(alpha: 0.35);
+    // Icon colors: green for running, grey for idle
+    const runningIconColor = Color(0xFF4CAF50);
+    const idleIconColor = Color(0xFF888888);
+    final iconColor = running ? runningIconColor : idleIconColor;
+    final iconBgColor = running 
+        ? runningIconColor.withValues(alpha: 0.15) 
+        : idleIconColor.withValues(alpha: 0.1);
 
     return Container(
       height: double.infinity,
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: comp,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: text.withValues(alpha: 0.1)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            'PUMP STATUS',
-            style: _style(labelColor, size: 11, letterSpacing: 0.9),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'PUMP STATUS',
+                style: _style(muted, size: 11, letterSpacing: 0.9),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                running ? 'RUNNING' : 'IDLE',
+                style: _style(text, size: 18, weight: FontWeight.bold),
+              ),
+            ],
           ),
-          Text(
-            running ? 'RUNNING' : 'IDLE',
-            style: _style(statusTextColor, size: 22, weight: FontWeight.bold),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              running 
+                  ? PhosphorIcons.dropSimple() 
+                  : PhosphorIcons.dropSlash(),
+              color: iconColor,
+              size: 24,
+            ),
           ),
         ],
       ),
@@ -451,7 +481,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Rain Sensor Card
+  // Rain Sensor Card — same layout as Pump Status (text left, icon right)
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildRainCard({
     required bool isDark,
@@ -459,90 +489,130 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required Color text,
     required Color muted,
     required bool isRaining,
-  }) => Container(
-    height: double.infinity,
-    width: double.infinity,
-    padding: const EdgeInsets.all(18),
-    decoration: _cardDeco(comp, text),
-    child: Row(
-      children: [
-        Icon(
-          isRaining
-              ? PhosphorIcons.cloudRain(PhosphorIconsStyle.fill)
-              : PhosphorIcons.cloud(PhosphorIconsStyle.fill),
-          color: isRaining ? _cMoisture : muted,
-          size: 38,
-        ),
-        const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              isRaining ? 'Raining' : 'No Rain',
-              style: _style(text, size: 16, weight: FontWeight.bold),
+  }) {
+    // Icon colors: blue for raining, grey for dry
+    const rainingIconColor = Color(0xFF2196F3);
+    const dryIconColor = Color(0xFF888888);
+    final iconColor = isRaining ? rainingIconColor : dryIconColor;
+    final iconBgColor = isRaining 
+        ? rainingIconColor.withValues(alpha: 0.15) 
+        : dryIconColor.withValues(alpha: 0.1);
+
+    return Container(
+      height: double.infinity,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      decoration: _cardDeco(comp, text),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'RAIN STATUS',
+                style: _style(muted, size: 11, letterSpacing: 0.9),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                isRaining ? 'RAINING' : 'NO RAIN',
+                style: _style(text, size: 18, weight: FontWeight.bold),
+              ),
+            ],
+          ),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(12),
             ),
-            const SizedBox(height: 2),
-            Text(
-              'Sensor: ${isRaining ? "wet" : "dry"}',
-              style: _style(muted, size: 13),
+            child: Icon(
+              isRaining
+                  ? PhosphorIcons.cloudRain(PhosphorIconsStyle.fill)
+                  : PhosphorIcons.cloudSlash(),
+              color: iconColor,
+              size: 24,
             ),
-          ],
-        ),
-      ],
-    ),
-  );
+          ),
+        ],
+      ),
+    );
+  }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Active Profile Card — crop name + icon on left, stats on right
+  // Active Profile Card — like pump: label + name left, target/watering center, icon right
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildProfileCard({
     required bool isDark,
     required Color comp,
     required Color text,
     required Color muted,
-  }) => Container(
-    height: double.infinity,
-    width: double.infinity,
-    padding: const EdgeInsets.all(18),
-    decoration: _cardDeco(comp, text),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          'ACTIVE PROFILE',
-          style: _style(muted, size: 11, letterSpacing: 0.9),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Crop icon + name on the left
-            Icon(
+    Map<String, dynamic>? cropProfile,
+  }) {
+    final profileName = cropProfile?['name'] ?? 'No profile';
+    final minMoisture = (cropProfile?['min_moisture'] as num?)?.toInt() ?? 30;
+    final maxMoisture = (cropProfile?['max_moisture'] as num?)?.toInt() ?? 70;
+    const profileIconColor = Color(0xFF4CAF50);
+    final iconBgColor = profileIconColor.withValues(alpha: 0.15);
+
+    return Container(
+      height: double.infinity,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      decoration: _cardDeco(comp, text),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'ACTIVE PROFILE',
+                style: _style(muted, size: 11, letterSpacing: 0.9),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                profileName,
+                style: _style(text, size: 18, weight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+              ),
+            ],
+          ),
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _profileStatRow('Target', '$minMoisture% – $maxMoisture%', text, muted),
+                  const SizedBox(height: 2),
+                  _profileStatRow('Watering', '${cropProfile?['watering_minutes'] ?? 5} min', text, muted),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
               PhosphorIcons.plant(PhosphorIconsStyle.fill),
-              color: const Color(0xFF4CAF50),
-              size: 26,
+              color: profileIconColor,
+              size: 24,
             ),
-            const SizedBox(width: 8),
-            Text(
-              'Wheat',
-              style: _style(text, size: 18, weight: FontWeight.bold),
-            ),
-            const Spacer(),
-            // Stats on the right
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _profileStatRow('Target', '30% – 70%', text, muted),
-                const SizedBox(height: 4),
-                _profileStatRow('Kc coeff.', '1.15', text, muted),
-              ],
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _profileStatRow(
     String label,

@@ -13,7 +13,4 @@ class Settings:
     MQTT_BROKER: str = os.getenv("MQTT_BROKER", "localhost")
     MQTT_PORT: int = int(os.getenv("MQTT_PORT", 1883))
 
-    # OpenWeatherMap
-    OPENWEATHER_API_KEY: str = os.getenv("OPENWEATHER_API_KEY", "")
-
 settings = Settings()

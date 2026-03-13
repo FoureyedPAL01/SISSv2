@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from services.pump_service import send_pump_command
 from services.weather_service import get_weather_forecast
+from services.water_usage_service import get_weekly_water_usage
 
 router = APIRouter()
 
@@ -32,3 +33,15 @@ async def get_current_weather(lat: float, lon: float):
     if not forecast:
         raise HTTPException(status_code=500, detail="Failed to fetch weather data")
     return forecast
+
+@router.get("/water/usage")
+async def get_water_usage(device_id: str, days: int = 7):
+    """
+    Fetches weekly water usage for a device.
+    Returns list of {date, total_liters} for each day.
+    """
+    if days < 1 or days > 30:
+        raise HTTPException(status_code=400, detail="Days must be between 1 and 30")
+    
+    usage = await get_weekly_water_usage(device_id, days)
+    return {"device_id": device_id, "days": days, "usage": usage}

@@ -1,10 +1,11 @@
 // lib/screens/weather_screen.dart
 
+import 'dart:convert';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert';
 import '../providers/app_state_provider.dart';
 import '../utils/unit_converter.dart';
 import '../theme.dart';
@@ -24,9 +25,9 @@ class _WeatherScreenState extends State<WeatherScreen> {
   String? _error;
   Map<String, dynamic>? _weather;
 
-  // ── Location config ────────────────────────────────────────────────────────
-  static const double _lat = 19.097092385037833;
-  static const double _lon = 72.89634431557758;
+  static const double _lat = 19.1014;
+  static const double _lon = 72.8962;
+  static const String _apiKey = 'a38555c985439ec89c0d4f5e734f6826';
 
   @override
   void initState() {
@@ -37,32 +38,20 @@ class _WeatherScreenState extends State<WeatherScreen> {
   Future<void> _fetchWeather({bool force = false}) async {
     if (!force && _cachedData != null && _lastFetchTime != null) {
       if (DateTime.now().difference(_lastFetchTime!).inMinutes < 10) {
-        if (mounted) {
-          setState(() {
-            _weather = _cachedData;
-            _isLoading = false;
-          });
-        }
+        if (mounted) setState(() { _weather = _cachedData; _isLoading = false; });
         return;
       }
     }
 
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    setState(() { _isLoading = true; _error = null; });
 
     try {
       final uri = Uri.parse(
-        'https://api.open-meteo.com/v1/forecast'
-        '?latitude=$_lat'
-        '&longitude=$_lon'
-        '&current=temperature_2m,relative_humidity_2m,'
-        'precipitation,weather_code,wind_speed_10m'
-        '&daily=temperature_2m_max,temperature_2m_min,'
-        'precipitation_probability_max,weather_code'
-        '&timezone=auto'
-        '&forecast_days=7',
+        'https://api.openweathermap.org/data/2.5/onecall'
+        '?lat=$_lat&lon=$_lon'
+        '&exclude=minutely,alerts'
+        '&units=metric'
+        '&appid=$_apiKey',
       );
 
       final response = await http.get(uri).timeout(const Duration(seconds: 10));
@@ -71,140 +60,142 @@ class _WeatherScreenState extends State<WeatherScreen> {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         _cachedData = _parseResponse(data);
         _lastFetchTime = DateTime.now();
-        if (mounted) {
-          setState(() {
-            _weather = _cachedData;
-            _isLoading = false;
-          });
-        }
+        if (mounted) setState(() { _weather = _cachedData; _isLoading = false; });
       } else {
-        if (mounted) {
-          setState(() {
-            _error = 'Weather API returned status ${response.statusCode}';
-            _isLoading = false;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Could not reach weather service: $e';
+        if (mounted) setState(() {
+          _error = 'Weather API returned status ${response.statusCode}';
           _isLoading = false;
         });
       }
+    } catch (e) {
+      if (mounted) setState(() {
+        _error = 'Could not reach weather service: $e';
+        _isLoading = false;
+      });
     }
   }
 
   Map<String, dynamic> _parseResponse(Map<String, dynamic> raw) {
     final current = raw['current'] as Map<String, dynamic>;
-    final daily = raw['daily'] as Map<String, dynamic>;
+    final daily   = raw['daily']   as List<dynamic>;
+    final hourly  = raw['hourly']  as List<dynamic>;
 
-    final maxTemps = List<double>.from(
-      (daily['temperature_2m_max'] as List).map((v) => (v as num).toDouble()),
-    );
-    final minTemps = List<double>.from(
-      (daily['temperature_2m_min'] as List).map((v) => (v as num).toDouble()),
-    );
-    final rainChances = List<int>.from(
-      (daily['precipitation_probability_max'] as List).map(
-        (v) => (v as num).toInt(),
-      ),
-    );
-    final dates = List<String>.from(daily['time'] as List);
-    final codes = List<int>.from(
-      (daily['weather_code'] as List).map((v) => (v as num).toInt()),
-    );
+    final maxTemps    = daily.map((d) => (d['temp'] as Map<String, dynamic>)['max'] as double).toList();
+    final minTemps    = daily.map((d) => (d['temp'] as Map<String, dynamic>)['min'] as double).toList();
+    final rainChances = daily.map((d) => (d['pop'] as num).toInt()).toList();
+    final dates       = daily.map((d) {
+      final dt = d['dt'] as int;
+      return DateTime.fromMillisecondsSinceEpoch(dt * 1000).toIso8601String().split('T')[0];
+    }).toList();
+    final codes       = daily.map((d) => (d['weather'] as List<dynamic>)[0]['id'] as int).toList();
 
-    final willRainSoon = rainChances.isNotEmpty && rainChances[0] > 50;
+    final hourlyTemps = hourly.take(24).map((h) => (h['temp'] as num).toDouble()).toList();
+    final hourlyRain  = hourly.take(24).map((h) => ((h['pop'] as num?) ?? 0).toInt()).toList();
+    final hourlyTimes = hourly.take(24).map((h) {
+      final dt = h['dt'] as int;
+      return DateTime.fromMillisecondsSinceEpoch(dt * 1000).toIso8601String();
+    }).toList();
+
+    final currentWeather = (current['weather'] as List<dynamic>)[0] as Map<String, dynamic>;
+    final currentCode = currentWeather['id'] as int;
+    final rain = current['rain'] as Map<String, dynamic>?;
 
     return {
-      'current_temp': (current['temperature_2m'] as num).toDouble(),
-      'humidity': (current['relative_humidity_2m'] as num).toInt(),
-      'wind_speed': (current['wind_speed_10m'] as num).toDouble(),
-      'precipitation': (current['precipitation'] as num).toDouble(),
-      'weather_code': (current['weather_code'] as num).toInt(),
-      'temp_max': maxTemps.isNotEmpty ? maxTemps[0] : 0.0,
-      'temp_min': minTemps.isNotEmpty ? minTemps[0] : 0.0,
-      'max_pop': rainChances.isNotEmpty ? rainChances[0] : 0,
-      'will_rain_soon': willRainSoon,
-      'forecast': List.generate(
-        dates.length,
-        (i) => {
-          'date': dates[i],
-          'max': maxTemps[i],
-          'min': minTemps[i],
-          'rain_pct': rainChances[i],
-          'code': codes[i],
-        },
-      ),
+      'current_temp': (current['temp'] as num).toDouble(),
+      'humidity':     (current['humidity'] as num).toInt(),
+      'wind_speed':   (current['wind_speed'] as num).toDouble(),
+      'precipitation': (rain != null ? (rain['1h'] as num?)?.toDouble() ?? 0.0 : 0.0),
+      'weather_code': currentCode,
+      'temp_max':     maxTemps.isNotEmpty ? maxTemps[0] : 0.0,
+      'temp_min':     minTemps.isNotEmpty ? minTemps[0] : 0.0,
+      'max_pop':      rainChances.isNotEmpty ? rainChances[0] : 0,
+      'will_rain_soon': rainChances.isNotEmpty && rainChances[0] > 50,
+      'forecast': List.generate(dates.length, (i) => {
+        'date': dates[i], 'max': maxTemps[i], 'min': minTemps[i],
+        'rain_pct': rainChances[i], 'code': codes[i],
+      }),
+      'hourly_times': hourlyTimes,
+      'hourly_temps': hourlyTemps,
+      'hourly_rain':  hourlyRain,
     };
   }
 
-  // WMO weather code → human-readable label
+  // ── Helpers ────────────────────────────────────────────────────────────────
   String _weatherLabel(int code) {
-    if (code == 0) return 'Clear Sky';
-    if (code <= 3) return 'Partly Cloudy';
-    if (code <= 49) return 'Foggy';
-    if (code <= 67) return 'Rainy';
-    if (code <= 77) return 'Snowy';
-    if (code <= 82) return 'Rain Showers';
-    if (code <= 99) return 'Thunderstorm';
+    if (code == 800) return 'Clear Sky';
+    if (code == 801) return 'Few Clouds';
+    if (code == 802) return 'Scattered Clouds';
+    if (code >= 803) return 'Overcast';
+    if (code >= 700) return 'Foggy';
+    if (code >= 600) return 'Snowy';
+    if (code >= 500) return 'Rainy';
+    if (code >= 300) return 'Drizzle';
+    if (code >= 200) return 'Thunderstorm';
     return 'Unknown';
   }
 
-  // WMO code → icon
-  PhosphorIconData _weatherIcon(int code) {
-    if (code == 0) return PhosphorIcons.sun();
-    if (code <= 3) return PhosphorIcons.cloud();
-    if (code <= 49) return PhosphorIcons.cloudFog();
-    if (code <= 82) return PhosphorIcons.cloudRain();
-    if (code <= 99) return PhosphorIcons.cloudLightning();
+  PhosphorIconData _weatherIcon(int code, {bool isNight = false}) {
+    if (code == 800) return isNight ? PhosphorIcons.moon() : PhosphorIcons.sun();
+    if (code == 801 || code == 802) return isNight ? PhosphorIcons.cloudMoon() : PhosphorIcons.cloudSun();
+    if (code >= 700) return PhosphorIcons.cloudFog();
+    if (code >= 600) return PhosphorIcons.snowflake();
+    if (code >= 500) return PhosphorIcons.cloudRain();
+    if (code >= 300) return PhosphorIcons.cloudRain();
+    if (code >= 200) return PhosphorIcons.cloudLightning();
     return PhosphorIcons.cloud();
+  }
+
+  bool _isNighttime() {
+    final hour = DateTime.now().hour;
+    return hour < 6 || hour >= 18;
   }
 
   String _dayLabel(String isoDate) {
     final d = DateTime.parse(isoDate);
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final today = DateTime.now();
+    if (d.year == today.year && d.month == today.month && d.day == today.day) return 'TODAY';
+    const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
     return days[d.weekday - 1];
   }
+
+  String _todayFormatted() {
+    final d = DateTime.now();
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const days   = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    return '${days[d.weekday - 1]}, ${months[d.month - 1]} ${d.day}';
+  }
+
+  String _hourLabel(String iso) => iso.length >= 16 ? iso.substring(11, 16) : iso;
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AppStateProvider>(
-      builder: (context, appState, _) {
-        final tempUnit = appState.tempUnit;
-        return Scaffold(
-          body: RefreshIndicator(
-            onRefresh: () => _fetchWeather(force: true),
-            child: _buildBody(context, tempUnit),
-          ),
-        );
-      },
+      builder: (context, appState, _) => Scaffold(
+        body: RefreshIndicator(
+          onRefresh: () => _fetchWeather(force: true),
+          child: _buildBody(context, appState.tempUnit),
+        ),
+      ),
     );
   }
 
   Widget _buildBody(BuildContext context, String tempUnit) {
-    final colors = Theme.of(context).colorScheme;
+    final colors    = Theme.of(context).colorScheme;
     final appColors = Theme.of(context).extension<AppColors>()!;
 
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
 
     if (_error != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(PhosphorIcons.cloudSlash(), size: 48, color: colors.error),
               const SizedBox(height: 16),
-              Text(
-                _error!,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: colors.error),
-              ),
+              Text(_error!, textAlign: TextAlign.center,
+                  style: TextStyle(color: colors.error)),
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: () => _fetchWeather(force: true),
@@ -217,93 +208,36 @@ class _WeatherScreenState extends State<WeatherScreen> {
       );
     }
 
-    final w = _weather!;
+    final w        = _weather!;
     final forecast = w['forecast'] as List<Map<String, dynamic>>;
+    final hTemps   = List<double>.from(w['hourly_temps'] as List);
+    final hRain    = List<int>.from(w['hourly_rain'] as List);
+    final hTimes   = List<String>.from(w['hourly_times'] as List);
 
     return ListView(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
       children: [
-        // ── Current conditions card ──────────────────────────────────────────
-        Text(
-          'Weather Forecast',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontFamily: 'Bungee',
-            fontSize: 24,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Lat: $_lat  |  Lon: $_lon',
-          style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
-        ),
+
+        // ── Title ────────────────────────────────────────────────────────────
+        Text('Weather Forecast',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontFamily: 'Bungee', fontSize: 28)),
         const SizedBox(height: 16),
 
-        Card(
-          color: colors.surface,
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
-                Icon(
-                  _weatherIcon(w['weather_code'] as int),
-                  size: 56,
-                  color: colors.tertiary,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _weatherLabel(w['weather_code'] as int),
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Large current temperature
-                Text(
-                  UnitConverter.formatTemp(
-                    w['current_temp'] as double,
-                    tempUnit,
-                  ),
-                  style: const TextStyle(
-                    fontSize: 52,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'High ${UnitConverter.formatTemp(w['temp_max'] as double, tempUnit)}  '
-                  'Low ${UnitConverter.formatTemp(w['temp_min'] as double, tempUnit)}',
-                  style: TextStyle(color: colors.onSurfaceVariant),
-                ),
-                const SizedBox(height: 16),
-                // Stats row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _StatChip(
-                      icon: PhosphorIcons.drop(),
-                      label: 'Humidity',
-                      value: '${w['humidity']}%',
-                    ),
-                    _StatChip(
-                      icon: PhosphorIcons.wind(),
-                      label: 'Wind',
-                      value:
-                          '${(w['wind_speed'] as double).toStringAsFixed(0)} km/h',
-                    ),
-                    _StatChip(
-                      icon: PhosphorIcons.cloudRain(),
-                      label: 'Rain chance',
-                      value: '${w['max_pop']}%',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+        // ── Current conditions card ──────────────────────────────────────────
+        _CurrentWeatherCard(
+          date:         _todayFormatted(),
+          tempLabel:    UnitConverter.formatTemp(w['current_temp'] as double, tempUnit),
+          minLabel:     UnitConverter.formatTemp(w['temp_min'] as double, tempUnit),
+          condition:    _weatherLabel(w['weather_code'] as int),
+          icon:         _weatherIcon(w['weather_code'] as int, isNight: _isNighttime()),
+          humidity:     w['humidity'] as int,
+          windSpeed:    (w['wind_speed'] as double).toStringAsFixed(0),
+          rainChance:   w['max_pop'] as int,
+          colors:       colors,
         ),
 
-        // ── Rain warning banner ──────────────────────────────────────────────
+        // ── Rain warning ─────────────────────────────────────────────────────
         if (w['will_rain_soon'] == true) ...[
           const SizedBox(height: 12),
           Container(
@@ -328,61 +262,445 @@ class _WeatherScreenState extends State<WeatherScreen> {
           ),
         ],
 
-        // ── 7-day forecast list ──────────────────────────────────────────────
+        // ── 7-day forecast strip ─────────────────────────────────────────────
         const SizedBox(height: 24),
-        Text(
-          '7-Day Forecast',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontFamily: 'Bungee', fontSize: 20),
-        ),
+        Text('7-DAY FORECAST',
+            style: TextStyle(
+              fontSize: 12, fontWeight: FontWeight.bold,
+              letterSpacing: 1.0, fontFamily: 'Quicksand',
+              color: colors.onSurface,
+            )),
         const SizedBox(height: 12),
-
-        ...forecast.map(
-          (day) => Card(
-            color: colors.surface,
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: Icon(
-                _weatherIcon(day['code'] as int),
-                color: colors.primary,
+        Row(
+          children: List.generate(forecast.length, (i) {
+            final day = forecast[i];
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(left: i == 0 ? 0 : 5, right: i == forecast.length - 1 ? 0 : 5),
+                child: _ForecastDayCard(
+                  dayLabel: _dayLabel(day['date'] as String),
+                  icon:     _weatherIcon(day['code'] as int, isNight: _isNighttime()),
+                  maxTemp:  '${(day['max'] as double).toStringAsFixed(0)}°',
+                  minTemp:  '${(day['min'] as double).toStringAsFixed(0)}°',
+                  isToday:  i == 0,
+                  colors:   colors,
+                ),
               ),
-              title: Text(_dayLabel(day['date'] as String)),
-              subtitle: Text(_weatherLabel(day['code'] as int)),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '${(day['max'] as double).toStringAsFixed(0)}� / '
-                    '${(day['min'] as double).toStringAsFixed(0)}�',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    'Rain ${day['rain_pct']}%',
-                    style: TextStyle(fontSize: 11, color: appColors.infoBlueDark),
-                  ),
-                ],
-              ),
-            ),
-          ),
+            );
+          }),
         ),
+
+        // ── Charts row ───────────────────────────────────────────────────────
+        const SizedBox(height: 24),
+        LayoutBuilder(builder: (_, constraints) {
+          final wide = constraints.maxWidth >= 600;
+          if (wide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _TempBarChart(times: hTimes, temps: hTemps, colors: colors)),
+                const SizedBox(width: 12),
+                Expanded(child: _RainBarChart(times: hTimes, rain: hRain, colors: colors)),
+              ],
+            );
+          }
+          return Column(children: [
+            _TempBarChart(times: hTimes, temps: hTemps, colors: colors),
+            const SizedBox(height: 12),
+            _RainBarChart(times: hTimes, rain: hRain, colors: colors),
+          ]);
+        }),
       ],
     );
   }
 }
 
-// Small reusable stat chip used in the current conditions card
+// ─────────────────────────────────────────────────────────────────────────────
+// Current weather hero card
+// ─────────────────────────────────────────────────────────────────────────────
+class _CurrentWeatherCard extends StatelessWidget {
+  final String date, tempLabel, minLabel, condition, windSpeed;
+  final int humidity, rainChance;
+  final PhosphorIconData icon;
+  final ColorScheme colors;
+
+  const _CurrentWeatherCard({
+    required this.date,          required this.tempLabel,
+    required this.minLabel,      required this.condition,
+    required this.icon,          required this.humidity,
+    required this.windSpeed,     required this.rainChance,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.outline.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        children: [
+          // Upper: date + big temp + icon
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(date,
+                    style: TextStyle(
+                      fontSize: 13, fontFamily: 'Quicksand',
+                      color: colors.onSurfaceVariant,
+                    )),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Text(tempLabel,
+                                  style: TextStyle(
+                                    fontSize: 52, fontWeight: FontWeight.bold,
+                                    fontFamily: 'Quicksand',
+                                    color: colors.onSurface,
+                                  )),
+                              const SizedBox(width: 8),
+                              Text('/ $minLabel',
+                                  style: TextStyle(
+                                    fontSize: 22, fontFamily: 'Quicksand',
+                                    color: colors.onSurfaceVariant,
+                                  )),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(condition,
+                              style: TextStyle(
+                                fontSize: 15, fontFamily: 'Quicksand',
+                                color: colors.onSurfaceVariant,
+                              )),
+                        ],
+                      ),
+                    ),
+                    Icon(icon, size: 72,
+                        color: colors.primary.withValues(alpha: 0.7)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          Divider(height: 1, color: colors.outline.withValues(alpha: 0.18)),
+
+          // Bottom stats row
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _StatChip(
+                  icon: PhosphorIcons.drop(),
+                  label: 'Humidity',
+                  value: '$humidity%',
+                ),
+                _StatChip(
+                  icon: PhosphorIcons.cloudRain(),
+                  label: 'Rain chance',
+                  value: '$rainChance%',
+                ),
+                _StatChip(
+                  icon: PhosphorIcons.wind(),
+                  label: 'Wind speed',
+                  value: '$windSpeed km/h',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Compact 7-day forecast card
+// ─────────────────────────────────────────────────────────────────────────────
+class _ForecastDayCard extends StatelessWidget {
+  final String dayLabel, maxTemp, minTemp;
+  final PhosphorIconData icon;
+  final bool isToday;
+  final ColorScheme colors;
+
+  const _ForecastDayCard({
+    required this.dayLabel, required this.icon,
+    required this.maxTemp,  required this.minTemp,
+    required this.isToday,  required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+      decoration: BoxDecoration(
+        color: isToday ? colors.primary.withValues(alpha: 0.12) : colors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isToday ? colors.primary : colors.outline.withValues(alpha: 0.25),
+          width: isToday ? 1.5 : 1,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          Text(dayLabel,
+              style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.bold,
+                fontFamily: 'Quicksand', letterSpacing: 0.5,
+                color: isToday ? colors.primary : colors.onSurfaceVariant,
+              )),
+          const SizedBox(height: 8),
+          Icon(icon, size: 28,
+              color: isToday ? colors.primary : colors.onSurfaceVariant),
+          const SizedBox(height: 8),
+          Text(maxTemp,
+              style: TextStyle(
+                fontSize: 15, fontWeight: FontWeight.bold,
+                fontFamily: 'Quicksand', color: colors.onSurface,
+              )),
+          Text(minTemp,
+              style: TextStyle(
+                fontSize: 12, fontFamily: 'Quicksand',
+                color: colors.onSurfaceVariant,
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Temperature line chart (next 24h)
+// ─────────────────────────────────────────────────────────────────────────────
+class _TempBarChart extends StatelessWidget {
+  final List<String> times;
+  final List<double> temps;
+  final ColorScheme colors;
+
+  const _TempBarChart({required this.times, required this.temps, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final minY = (temps.reduce((a, b) => a < b ? a : b) - 2).floorToDouble();
+    final maxY = (temps.reduce((a, b) => a > b ? a : b) + 2).ceilToDouble();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 16, 16, 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.outline.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(PhosphorIcons.thermometer(), size: 16, color: Colors.orange),
+            const SizedBox(width: 6),
+            Text('Temperature (next 24h)',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 13,
+                  fontFamily: 'Quicksand', color: colors.onSurface,
+                )),
+          ]),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 160,
+            child: LineChart(
+              LineChartData(
+                minY: minY, maxY: maxY,
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipItems: (spots) => spots.map((spot) => LineTooltipItem(
+                      '${spot.y.toStringAsFixed(1)}°',
+                      const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'Quicksand'),
+                    )).toList(),
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true, reservedSize: 32,
+                      getTitlesWidget: (v, _) => Text(
+                        '${v.toInt()}°',
+                        style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant, fontFamily: 'Quicksand'),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true, reservedSize: 22,
+                      getTitlesWidget: (v, _) {
+                        final i = v.toInt();
+                        if (i % 4 != 0 || i >= times.length) return const SizedBox.shrink();
+                        return Text(
+                          _hourLabel(times[i]),
+                          style: TextStyle(fontSize: 9, color: colors.onSurfaceVariant, fontFamily: 'Quicksand'),
+                        );
+                      },
+                    ),
+                  ),
+                  topTitles:   const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                gridData: FlGridData(
+                  show: true, drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: colors.outline.withValues(alpha: 0.15), strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: List.generate(temps.length, (i) => FlSpot(i.toDouble(), temps[i])),
+                    isCurved: true,
+                    color: Colors.orange,
+                    barWidth: 3,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: Colors.orange.withValues(alpha: 0.2),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _hourLabel(String iso) => iso.length >= 16 ? iso.substring(11, 16) : iso;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rain probability line chart (next 24h)
+// ─────────────────────────────────────────────────────────────────────────────
+class _RainBarChart extends StatelessWidget {
+  final List<String> times;
+  final List<int> rain;
+  final ColorScheme colors;
+
+  const _RainBarChart({required this.times, required this.rain, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 16, 16, 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.outline.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(PhosphorIcons.cloudRain(), size: 16, color: colors.primary),
+            const SizedBox(width: 6),
+            Text('Rain Probability (next 24h)',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 13,
+                  fontFamily: 'Quicksand', color: colors.onSurface,
+                )),
+          ]),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 160,
+            child: LineChart(
+              LineChartData(
+                minY: 0, maxY: 100,
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipItems: (spots) => spots.map((spot) => LineTooltipItem(
+                      '${spot.y.toInt()}%',
+                      const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'Quicksand'),
+                    )).toList(),
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true, reservedSize: 36,
+                      interval: 25,
+                      getTitlesWidget: (v, _) => Text(
+                        '${v.toInt()}%',
+                        style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant, fontFamily: 'Quicksand'),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true, reservedSize: 22,
+                      getTitlesWidget: (v, _) {
+                        final i = v.toInt();
+                        if (i % 4 != 0 || i >= times.length) return const SizedBox.shrink();
+                        return Text(
+                          _hourLabel(times[i]),
+                          style: TextStyle(fontSize: 9, color: colors.onSurfaceVariant, fontFamily: 'Quicksand'),
+                        );
+                      },
+                    ),
+                  ),
+                  topTitles:   const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                gridData: FlGridData(
+                  show: true, drawVerticalLine: false,
+                  horizontalInterval: 25,
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: colors.outline.withValues(alpha: 0.15), strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: List.generate(rain.length, (i) => FlSpot(i.toDouble(), rain[i].toDouble())),
+                    isCurved: true,
+                    color: colors.primary,
+                    barWidth: 3,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: colors.primary.withValues(alpha: 0.2),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _hourLabel(String iso) => iso.length >= 16 ? iso.substring(11, 16) : iso;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stat chip
+// ─────────────────────────────────────────────────────────────────────────────
 class _StatChip extends StatelessWidget {
   final PhosphorIconData icon;
-  final String label;
-  final String value;
+  final String label, value;
 
-  const _StatChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+  const _StatChip({required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -391,11 +709,8 @@ class _StatChip extends StatelessWidget {
       children: [
         Icon(icon, size: 20, color: colors.onSurfaceVariant),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-        Text(
-          label,
-          style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
-        ),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Quicksand')),
+        Text(label, style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant, fontFamily: 'Quicksand')),
       ],
     );
   }
