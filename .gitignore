@@ -54,3 +54,10 @@ windows/flutter/generated_plugins.cmake
 # Env / secrets
 .env
 .env.*
+
+# Scripts (local utilities)
+*.txt
+*.py
+
+# Supabase
+supabase/.temp/
