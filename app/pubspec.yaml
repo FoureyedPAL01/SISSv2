@@ -82,6 +82,12 @@ flutter:
     - family: Quicksand
       fonts:
         - asset: assets/fonts/Quicksand-VariableFont_wght.ttf
+    - family: GermaniaOne
+      fonts:
+        - asset: assets/fonts/GermaniaOne-Regular.ttf
+    - family: ChelseaMarket
+      fonts:
+        - asset: assets/fonts/ChelseaMarket-Regular.ttf
     - family: SpecialElite
       fonts:
         - asset: assets/fonts/SpecialElite-Regular.ttf

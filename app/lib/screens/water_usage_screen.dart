@@ -281,7 +281,7 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
         Text(
           'Water Usage',
           style: textTheme.headlineMedium?.copyWith(
-            fontFamily: 'Bungee', fontSize: 24,
+            fontFamily: 'GermaniaOne', fontSize: 24,
           ),
         ),
         const SizedBox(height: 4),

@@ -230,7 +230,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
                     Text(
                       'Alerts',
                       style: textTheme.headlineMedium?.copyWith(
-                        fontFamily: 'Bungee',
+                        fontFamily: 'GermaniaOne',
                         fontSize:   24,
                       ),
                     ),

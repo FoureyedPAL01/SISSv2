@@ -104,7 +104,7 @@ class AppLayoutScaffold extends StatelessWidget {
         title: Text(
           'Smart Irrigation System F',
           style: TextStyle(
-            fontFamily: 'Bungee',
+            fontFamily: 'GermaniaOne',
             fontSize: 20,
             color: colors.onSurface,
             fontWeight: FontWeight.bold,
@@ -169,7 +169,7 @@ class AppLayoutScaffold extends StatelessWidget {
           Padding(
             padding: EdgeInsets.fromLTRB(28, 24, 16, 10),
             child: Text('SISF',
-                style: TextStyle(fontFamily: 'Bungee', fontSize: 22, color: colors.primary, fontWeight: FontWeight.bold)),
+                style: TextStyle(fontFamily: 'GermaniaOne', fontSize: 22, color: colors.primary, fontWeight: FontWeight.bold)),
           ),
           Consumer<AppStateProvider>(
             builder: (context, provider, _) {

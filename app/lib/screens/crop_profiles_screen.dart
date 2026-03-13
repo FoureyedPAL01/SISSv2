@@ -245,7 +245,7 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
                     style: Theme.of(context)
                         .textTheme
                         .headlineMedium
-                        ?.copyWith(fontFamily: 'Bungee', fontSize: 24),
+                        ?.copyWith(fontFamily: 'GermaniaOne', fontSize: 24),
                   ),
                   const SizedBox(height: 8),
                   Text(

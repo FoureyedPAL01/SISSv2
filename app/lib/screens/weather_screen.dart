@@ -27,7 +27,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
   static const double _lat = 19.1014;
   static const double _lon = 72.8962;
-  static const String _apiKey = 'a38555c985439ec89c0d4f5e734f6826';
+  static const String _apiKey = 'c0e1c1a76c203aad0e2e54276eba77cb';
 
   @override
   void initState() {
@@ -46,24 +46,33 @@ class _WeatherScreenState extends State<WeatherScreen> {
     setState(() { _isLoading = true; _error = null; });
 
     try {
-      final uri = Uri.parse(
-        'https://api.openweathermap.org/data/2.5/onecall'
+      final currentUri = Uri.parse(
+        'https://api.openweathermap.org/data/2.5/weather'
         '?lat=$_lat&lon=$_lon'
-        '&exclude=minutely,alerts'
         '&units=metric'
         '&appid=$_apiKey',
       );
+      
+      final forecastUri = Uri.parse(
+        'https://api.openweathermap.org/data/2.5/forecast'
+        '?lat=$_lat&lon=$_lon'
+        '&units=metric'
+        '&cnt=40'
+        '&appid=$_apiKey',
+      );
 
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+      final currentResponse = await http.get(currentUri).timeout(const Duration(seconds: 10));
+      final forecastResponse = await http.get(forecastUri).timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        _cachedData = _parseResponse(data);
+      if (currentResponse.statusCode == 200 && forecastResponse.statusCode == 200) {
+        final currentData = jsonDecode(currentResponse.body) as Map<String, dynamic>;
+        final forecastData = jsonDecode(forecastResponse.body) as Map<String, dynamic>;
+        _cachedData = _parseResponse(currentData, forecastData);
         _lastFetchTime = DateTime.now();
         if (mounted) setState(() { _weather = _cachedData; _isLoading = false; });
       } else {
         if (mounted) setState(() {
-          _error = 'Weather API returned status ${response.statusCode}';
+          _error = 'Weather API returned status ${currentResponse.statusCode}';
           _isLoading = false;
         });
       }
@@ -75,36 +84,51 @@ class _WeatherScreenState extends State<WeatherScreen> {
     }
   }
 
-  Map<String, dynamic> _parseResponse(Map<String, dynamic> raw) {
-    final current = raw['current'] as Map<String, dynamic>;
-    final daily   = raw['daily']   as List<dynamic>;
-    final hourly  = raw['hourly']  as List<dynamic>;
+  Map<String, dynamic> _parseResponse(Map<String, dynamic> current, Map<String, dynamic> forecastRaw) {
+    final currentWeather = (current['weather'] as List<dynamic>)[0] as Map<String, dynamic>;
+    final currentCode = currentWeather['id'] as int;
+    final main = current['main'] as Map<String, dynamic>;
 
-    final maxTemps    = daily.map((d) => (d['temp'] as Map<String, dynamic>)['max'] as double).toList();
-    final minTemps    = daily.map((d) => (d['temp'] as Map<String, dynamic>)['min'] as double).toList();
-    final rainChances = daily.map((d) => (d['pop'] as num).toInt()).toList();
-    final dates       = daily.map((d) {
-      final dt = d['dt'] as int;
-      return DateTime.fromMillisecondsSinceEpoch(dt * 1000).toIso8601String().split('T')[0];
-    }).toList();
-    final codes       = daily.map((d) => (d['weather'] as List<dynamic>)[0]['id'] as int).toList();
+    final list = forecastRaw['list'] as List<dynamic>;
+    
+    final Map<String, List<dynamic>> dailyData = {};
+    for (final item in list) {
+      final dt = item['dt'] as int;
+      final date = DateTime.fromMillisecondsSinceEpoch(dt * 1000);
+      final dateStr = date.toIso8601String().split('T')[0];
+      dailyData.putIfAbsent(dateStr, () => []).add(item);
+    }
 
-    final hourlyTemps = hourly.take(24).map((h) => (h['temp'] as num).toDouble()).toList();
-    final hourlyRain  = hourly.take(24).map((h) => ((h['pop'] as num?) ?? 0).toInt()).toList();
-    final hourlyTimes = hourly.take(24).map((h) {
+    final dates = dailyData.keys.take(7).toList();
+    final maxTemps = <double>[];
+    final minTemps = <double>[];
+    final rainChances = <int>[];
+    final codes = <int>[];
+
+    for (final date in dates) {
+      final dayItems = dailyData[date]!;
+      final temps = dayItems.map((i) => ((i['main'] as Map<String, dynamic>)['temp'] as num).toDouble()).toList();
+      final pops = dayItems.map((i) => ((i['pop'] as num?) ?? 0) * 100).toList();
+      final dayCodes = dayItems.map((i) => ((i['weather'] as List<dynamic>)[0])['id'] as int).toList();
+      
+      maxTemps.add(temps.reduce((a, b) => a > b ? a : b));
+      minTemps.add(temps.reduce((a, b) => a < b ? a : b));
+      rainChances.add(pops.reduce((a, b) => a > b ? a : b).toInt());
+      codes.add(dayCodes.isNotEmpty ? dayCodes[0] : 800);
+    }
+
+    final hourlyTemps = list.take(24).map((h) => ((h['main'] as Map<String, dynamic>)['temp'] as num).toDouble()).toList();
+    final hourlyRain = list.take(24).map((h) => (((h['pop'] as num?) ?? 0) * 100).toInt()).toList();
+    final hourlyTimes = list.take(24).map((h) {
       final dt = h['dt'] as int;
       return DateTime.fromMillisecondsSinceEpoch(dt * 1000).toIso8601String();
     }).toList();
 
-    final currentWeather = (current['weather'] as List<dynamic>)[0] as Map<String, dynamic>;
-    final currentCode = currentWeather['id'] as int;
-    final rain = current['rain'] as Map<String, dynamic>?;
-
     return {
-      'current_temp': (current['temp'] as num).toDouble(),
-      'humidity':     (current['humidity'] as num).toInt(),
-      'wind_speed':   (current['wind_speed'] as num).toDouble(),
-      'precipitation': (rain != null ? (rain['1h'] as num?)?.toDouble() ?? 0.0 : 0.0),
+      'current_temp': (main['temp'] as num).toDouble(),
+      'humidity':     (main['humidity'] as num).toInt(),
+      'wind_speed':   ((current['wind'] as Map<String, dynamic>)?['speed'] as num?)?.toDouble() ?? 0.0,
+      'precipitation': 0.0,
       'weather_code': currentCode,
       'temp_max':     maxTemps.isNotEmpty ? maxTemps[0] : 0.0,
       'temp_min':     minTemps.isNotEmpty ? minTemps[0] : 0.0,
@@ -221,7 +245,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
         // ── Title ────────────────────────────────────────────────────────────
         Text('Weather Forecast',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontFamily: 'Bungee', fontSize: 28)),
+              fontFamily: 'GermaniaOne', fontSize: 28)),
         const SizedBox(height: 16),
 
         // ── Current conditions card ──────────────────────────────────────────
@@ -267,7 +291,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
         Text('7-DAY FORECAST',
             style: TextStyle(
               fontSize: 12, fontWeight: FontWeight.bold,
-              letterSpacing: 1.0, fontFamily: 'Quicksand',
+              letterSpacing: 1.0, fontFamily: 'GermaniaOne',
               color: colors.onSurface,
             )),
         const SizedBox(height: 12),
@@ -350,7 +374,7 @@ class _CurrentWeatherCard extends StatelessWidget {
               children: [
                 Text(date,
                     style: TextStyle(
-                      fontSize: 13, fontFamily: 'Quicksand',
+                      fontSize: 13, fontFamily: 'GermaniaOne',
                       color: colors.onSurfaceVariant,
                     )),
                 const SizedBox(height: 12),
@@ -368,13 +392,13 @@ class _CurrentWeatherCard extends StatelessWidget {
                               Text(tempLabel,
                                   style: TextStyle(
                                     fontSize: 52, fontWeight: FontWeight.bold,
-                                    fontFamily: 'Quicksand',
+                                    fontFamily: 'GermaniaOne',
                                     color: colors.onSurface,
                                   )),
                               const SizedBox(width: 8),
                               Text('/ $minLabel',
                                   style: TextStyle(
-                                    fontSize: 22, fontFamily: 'Quicksand',
+                                    fontSize: 22, fontFamily: 'GermaniaOne',
                                     color: colors.onSurfaceVariant,
                                   )),
                             ],
@@ -382,7 +406,7 @@ class _CurrentWeatherCard extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(condition,
                               style: TextStyle(
-                                fontSize: 15, fontFamily: 'Quicksand',
+                                fontSize: 15, fontFamily: 'GermaniaOne',
                                 color: colors.onSurfaceVariant,
                               )),
                         ],
@@ -461,7 +485,7 @@ class _ForecastDayCard extends StatelessWidget {
           Text(dayLabel,
               style: TextStyle(
                 fontSize: 11, fontWeight: FontWeight.bold,
-                fontFamily: 'Quicksand', letterSpacing: 0.5,
+                fontFamily: 'GermaniaOne', letterSpacing: 0.5,
                 color: isToday ? colors.primary : colors.onSurfaceVariant,
               )),
           const SizedBox(height: 8),
@@ -471,11 +495,11 @@ class _ForecastDayCard extends StatelessWidget {
           Text(maxTemp,
               style: TextStyle(
                 fontSize: 15, fontWeight: FontWeight.bold,
-                fontFamily: 'Quicksand', color: colors.onSurface,
+                fontFamily: 'GermaniaOne', color: colors.onSurface,
               )),
           Text(minTemp,
               style: TextStyle(
-                fontSize: 12, fontFamily: 'Quicksand',
+                fontSize: 12, fontFamily: 'GermaniaOne',
                 color: colors.onSurfaceVariant,
               )),
         ],
@@ -515,7 +539,7 @@ class _TempBarChart extends StatelessWidget {
             Text('Temperature (next 24h)',
                 style: TextStyle(
                   fontWeight: FontWeight.bold, fontSize: 13,
-                  fontFamily: 'Quicksand', color: colors.onSurface,
+                  fontFamily: 'GermaniaOne', color: colors.onSurface,
                 )),
           ]),
           const SizedBox(height: 16),
@@ -528,7 +552,7 @@ class _TempBarChart extends StatelessWidget {
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipItems: (spots) => spots.map((spot) => LineTooltipItem(
                       '${spot.y.toStringAsFixed(1)}°',
-                      const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'Quicksand'),
+                      const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'GermaniaOne'),
                     )).toList(),
                   ),
                 ),
@@ -538,7 +562,7 @@ class _TempBarChart extends StatelessWidget {
                       showTitles: true, reservedSize: 32,
                       getTitlesWidget: (v, _) => Text(
                         '${v.toInt()}°',
-                        style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant, fontFamily: 'Quicksand'),
+                        style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant, fontFamily: 'GermaniaOne'),
                       ),
                     ),
                   ),
@@ -550,7 +574,7 @@ class _TempBarChart extends StatelessWidget {
                         if (i % 4 != 0 || i >= times.length) return const SizedBox.shrink();
                         return Text(
                           _hourLabel(times[i]),
-                          style: TextStyle(fontSize: 9, color: colors.onSurfaceVariant, fontFamily: 'Quicksand'),
+                          style: TextStyle(fontSize: 9, color: colors.onSurfaceVariant, fontFamily: 'GermaniaOne'),
                         );
                       },
                     ),
@@ -617,7 +641,7 @@ class _RainBarChart extends StatelessWidget {
             Text('Rain Probability (next 24h)',
                 style: TextStyle(
                   fontWeight: FontWeight.bold, fontSize: 13,
-                  fontFamily: 'Quicksand', color: colors.onSurface,
+                  fontFamily: 'GermaniaOne', color: colors.onSurface,
                 )),
           ]),
           const SizedBox(height: 16),
@@ -630,7 +654,7 @@ class _RainBarChart extends StatelessWidget {
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipItems: (spots) => spots.map((spot) => LineTooltipItem(
                       '${spot.y.toInt()}%',
-                      const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'Quicksand'),
+                      const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'GermaniaOne'),
                     )).toList(),
                   ),
                 ),
@@ -641,7 +665,7 @@ class _RainBarChart extends StatelessWidget {
                       interval: 25,
                       getTitlesWidget: (v, _) => Text(
                         '${v.toInt()}%',
-                        style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant, fontFamily: 'Quicksand'),
+                        style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant, fontFamily: 'GermaniaOne'),
                       ),
                     ),
                   ),
@@ -653,7 +677,7 @@ class _RainBarChart extends StatelessWidget {
                         if (i % 4 != 0 || i >= times.length) return const SizedBox.shrink();
                         return Text(
                           _hourLabel(times[i]),
-                          style: TextStyle(fontSize: 9, color: colors.onSurfaceVariant, fontFamily: 'Quicksand'),
+                          style: TextStyle(fontSize: 9, color: colors.onSurfaceVariant, fontFamily: 'GermaniaOne'),
                         );
                       },
                     ),
@@ -709,8 +733,8 @@ class _StatChip extends StatelessWidget {
       children: [
         Icon(icon, size: 20, color: colors.onSurfaceVariant),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Quicksand')),
-        Text(label, style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant, fontFamily: 'Quicksand')),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'GermaniaOne')),
+        Text(label, style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant, fontFamily: 'GermaniaOne')),
       ],
     );
   }

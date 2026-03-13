@@ -1,6 +1,6 @@
 // lib/screens/login_screen.dart
 //
-// Uses 'Quicksand' as default font and 'Bungee' for headers
+// Uses 'GermaniaOne' as default font and 'GermaniaOne' for headers
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -35,7 +35,7 @@ class _LoginScreenState extends State<LoginScreen>
   Color get _border => _text.withValues(alpha: 0.18);
 
   // ─── Typography helper ───────────────────────────────────────────────────────
-  // 'Quicksand' is the default font for all text
+  // 'GermaniaOne' is the default font for all text
   // Default size is bigger (16) and bold for most text
   TextStyle _ts({
     double size = 16,
@@ -43,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen>
     Color? color,
     double? letterSpacing,
   }) => TextStyle(
-    fontFamily: 'Quicksand',
+    fontFamily: 'GermaniaOne',
     fontSize: size,
     fontWeight: weight,
     color: color ?? _text,
@@ -58,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen>
     Color? color,
     double? letterSpacing,
   }) => TextStyle(
-    fontFamily: 'Quicksand',
+    fontFamily: 'GermaniaOne',
     fontSize: size,
     fontWeight: weight,
     color: color ?? _text,
@@ -66,13 +66,13 @@ class _LoginScreenState extends State<LoginScreen>
     decoration: TextDecoration.none,
   );
 
-  // Heading text style using Bungee
+  // Heading text style using GermaniaOne
   TextStyle _headerTs({
     double size = 22,
     FontWeight weight = FontWeight.bold,
     Color? color,
   }) => TextStyle(
-    fontFamily: 'Bungee',
+    fontFamily: 'GermaniaOne',
     fontSize: size,
     fontWeight: weight,
     color: color ?? _text,
@@ -362,12 +362,12 @@ class _LoginScreenState extends State<LoginScreen>
               Tab(text: 'Sign Up'),
             ],
             labelStyle: TextStyle(
-              fontFamily: 'Quicksand',
+              fontFamily: 'GermaniaOne',
               fontWeight: FontWeight.bold,
               fontSize: 15,
             ),
             unselectedLabelStyle: TextStyle(
-              fontFamily: 'Quicksand',
+              fontFamily: 'GermaniaOne',
               fontWeight: FontWeight.bold,
               fontSize: 15,
             ),

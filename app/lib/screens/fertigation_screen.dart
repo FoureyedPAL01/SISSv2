@@ -11,7 +11,7 @@ class FertigationScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         children: [
           Text("Fertigation Management", style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontFamily: 'Bungee',
+            fontFamily: 'GermaniaOne',
             fontSize: 24,
           )),
           const SizedBox(height: 8),

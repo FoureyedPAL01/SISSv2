@@ -94,9 +94,9 @@ class _PumpControlScreenState extends State<PumpControlScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Quicksand')),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'GermaniaOne')),
         content: Text(message,
-            style: const TextStyle(fontFamily: 'Quicksand')),
+            style: const TextStyle(fontFamily: 'GermaniaOne')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -217,7 +217,7 @@ class _PumpControlScreenState extends State<PumpControlScreen> {
             Text(
               'Pump Control',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontFamily: 'Bungee',
+                    fontFamily: 'GermaniaOne',
                     fontSize: 28,
                   ),
             ),
@@ -323,7 +323,7 @@ class _OverrideBanner extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
-                    fontFamily: 'Quicksand',
+                    fontFamily: 'GermaniaOne',
                     color: Color(0xFF92400E),
                   ),
                 ),
@@ -332,7 +332,7 @@ class _OverrideBanner extends StatelessWidget {
                   'Pump is running manually. Auto-irrigation logic is bypassed.',
                   style: TextStyle(
                     fontSize: 12,
-                    fontFamily: 'Quicksand',
+                    fontFamily: 'GermaniaOne',
                     color: const Color(0xFF92400E).withValues(alpha: 0.8),
                   ),
                 ),
@@ -341,7 +341,7 @@ class _OverrideBanner extends StatelessWidget {
                   'Auto-stop in $remLabel',
                   style: const TextStyle(
                     fontSize: 12,
-                    fontFamily: 'Quicksand',
+                    fontFamily: 'GermaniaOne',
                     fontWeight: FontWeight.bold,
                     color: Color(0xFFB45309),
                   ),
@@ -405,7 +405,7 @@ class _PumpControlCard extends StatelessWidget {
             'Pump Control',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
-                  fontFamily: 'Quicksand',
+                  fontFamily: 'GermaniaOne',
                 ),
           ),
           const SizedBox(height: 4),
@@ -414,7 +414,7 @@ class _PumpControlCard extends StatelessWidget {
             _subtitle,
             style: TextStyle(
               fontSize: 13,
-              fontFamily: 'Quicksand',
+              fontFamily: 'GermaniaOne',
               color: isRunning ? colorOn : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
@@ -476,7 +476,7 @@ class _PumpControlCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  fontFamily: 'Quicksand',
+                  fontFamily: 'GermaniaOne',
                   color: isRunning ? colorOn : Colors.grey.shade600,
                 ),
               ),
@@ -487,7 +487,7 @@ class _PumpControlCard extends StatelessWidget {
             isRunning ? 'Tap to stop pump' : 'Tap to start pump',
             style: TextStyle(
               fontSize: 12,
-              fontFamily: 'Quicksand',
+              fontFamily: 'GermaniaOne',
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
             ),
           ),
@@ -536,7 +536,7 @@ class _StatCard extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  fontFamily: 'Quicksand',
+                  fontFamily: 'GermaniaOne',
                   color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
                 ),
               ),
@@ -548,7 +548,7 @@ class _StatCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              fontFamily: 'Quicksand',
+              fontFamily: 'GermaniaOne',
               color: valueColor ?? Theme.of(context).colorScheme.onSurface,
             ),
           ),
