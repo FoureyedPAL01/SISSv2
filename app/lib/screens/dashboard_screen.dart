@@ -217,7 +217,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       text,
       size: 28,
       weight: FontWeight.bold,
-      fontFamily: 'GermaniaOne',
+      fontFamily: 'Poppins',
     ),
   );
 
@@ -323,7 +323,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       crossAxisCount: 2,
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
-      childAspectRatio: 0.9,
+      childAspectRatio: 0.95,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: cards,
@@ -429,13 +429,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     const runningIconColor = Color(0xFF4CAF50);
     const idleIconColor = Color(0xFF888888);
     final iconColor = running ? runningIconColor : idleIconColor;
-    final iconBgColor = running 
-        ? runningIconColor.withValues(alpha: 0.15) 
+    final iconBgColor = running
+        ? runningIconColor.withValues(alpha: 0.15)
         : idleIconColor.withValues(alpha: 0.1);
 
     return Container(
-      height: double.infinity,
-      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
       decoration: BoxDecoration(
         color: comp,
@@ -468,8 +466,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              running 
-                  ? PhosphorIcons.dropSimple() 
+              running
+                  ? PhosphorIcons.dropSimple()
                   : PhosphorIcons.dropSlash(),
               color: iconColor,
               size: 24,
@@ -494,13 +492,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     const rainingIconColor = Color(0xFF2196F3);
     const dryIconColor = Color(0xFF888888);
     final iconColor = isRaining ? rainingIconColor : dryIconColor;
-    final iconBgColor = isRaining 
-        ? rainingIconColor.withValues(alpha: 0.15) 
+    final iconBgColor = isRaining
+        ? rainingIconColor.withValues(alpha: 0.15)
         : dryIconColor.withValues(alpha: 0.1);
 
     return Container(
-      height: double.infinity,
-      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
       decoration: _cardDeco(comp, text),
       child: Row(
@@ -558,8 +554,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final iconBgColor = profileIconColor.withValues(alpha: 0.15);
 
     return Container(
-      height: double.infinity,
-      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
       decoration: _cardDeco(comp, text),
       child: Row(
@@ -649,19 +643,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Row(
             children: [
-              Text(
-                'Soil Moisture History',
-                style: _style(
-                  text,
-                  size: 16,
-                  weight: FontWeight.bold,
-                  fontFamily: 'GermaniaOne',
+              Flexible(
+                child: Text(
+                  'Soil Moisture History',
+                  style: _style(
+                    text,
+                    size: 16,
+                    weight: FontWeight.bold,
+                    fontFamily: 'Poppins',
+                  ),
                 ),
               ),
               const Spacer(),
-              _legendItem(Colors.redAccent, 'Dry (30%)'),
-              const SizedBox(width: 14),
-              _legendItem(_cMoisture, 'Wet (70%)'),
+              _legendItem(Colors.redAccent, 'Dry'),
+              const SizedBox(width: 8),
+              _legendItem(_cMoisture, 'Wet'),
             ],
           ),
           const SizedBox(height: 14),
@@ -762,6 +758,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           belowBarData: BarAreaData(
                             show: true,
                             color: _cMoisture.withValues(alpha: 0.15),
+                            cutOffY: 0,
+                            applyCutOffY: true,
                           ),
                         ),
                       ],
@@ -774,7 +772,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Temperature & Humidity Dual-Axis Chart
+  // Temperature & Humidity — dual line chart, fixed 0–100 Y axis
   // ─────────────────────────────────────────────────────────────────────────────
   Widget _buildTempHumidChart({
     required bool isDark,
@@ -786,25 +784,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required double currentTemp,
   }) {
     final gridColor = text.withValues(alpha: 0.07);
-    final tempMin = (currentTemp - 2).floorToDouble();
-    final tempMax = (currentTemp + 2).ceilToDouble();
-    final tempInterval = ((tempMax - tempMin) / 4).ceilToDouble();
-    final allData = [...tempData, ...humidData]
-      ..sort((a, b) => a.time.compareTo(b.time));
-    final tempRange = (tempMax - tempMin) <= 0 ? 1.0 : (tempMax - tempMin);
-    final tempSpots = _timeSeriesToSpots(
-      tempData,
-      minTime: allData.isEmpty ? null : allData.first.time,
-    );
-    final humidSpots = _timeSeriesToSpots(
-      humidData,
-      minTime: allData.isEmpty ? null : allData.first.time,
-      mapY: (y) => tempMin + (y.clamp(0, 100) / 100) * tempRange,
-    );
-    final maxX = <double>[
-      tempSpots.isEmpty ? 0 : tempSpots.last.x,
-      humidSpots.isEmpty ? 0 : humidSpots.last.x,
-    ].reduce((a, b) => a > b ? a : b);
+
+    // Both series share the same timestamps — use temp as the time base
+    final baseTime = tempData.isEmpty ? null : tempData.first.time;
+    final tempSpots  = _timeSeriesToSpots(tempData,  minTime: baseTime);
+    final humidSpots = _timeSeriesToSpots(humidData, minTime: baseTime);
+    final maxX = tempSpots.isEmpty ? 1.0 : tempSpots.last.x;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
@@ -814,47 +799,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Row(
             children: [
-              Text(
-                'Temperature & Humidity',
-                style: _style(
-                  text,
-                  size: 16,
-                  weight: FontWeight.bold,
-                  fontFamily: 'GermaniaOne',
+              Flexible(
+                child: Text(
+                  'Temperature & Humidity',
+                  style: _style(text, size: 16, weight: FontWeight.bold,
+                      fontFamily: 'Poppins'),
                 ),
               ),
               const Spacer(),
-              _legendItem(_cTemp, 'Temp C'),
-              const SizedBox(width: 14),
-              _legendItem(_cHumid, 'Humidity %'),
+              _legendItem(_cTemp,  'Temp'),
+              const SizedBox(width: 8),
+              _legendItem(_cHumid, 'Humid'),
             ],
           ),
           const SizedBox(height: 14),
           SizedBox(
-            height: 240,
-            child: allData.isEmpty
-                ? Center(
-                    child: Text('No data yet', style: _style(muted, size: 12)),
-                  )
+            height: 210,
+            child: tempSpots.isEmpty
+                ? Center(child: Text('No data yet', style: _style(muted, size: 12)))
                 : LineChart(
                     LineChartData(
                       minX: 0,
                       maxX: maxX <= 0 ? 1 : maxX,
-                      minY: tempMin,
-                      maxY: tempMax,
-                      borderData: FlBorderData(show: false),
+                      minY: 0,
+                      maxY: 100,
                       clipData: const FlClipData.all(),
+                      borderData: FlBorderData(show: false),
                       gridData: FlGridData(
                         show: true,
-                        drawVerticalLine: true,
-                        horizontalInterval: tempInterval > 0 ? tempInterval : 1,
-                        verticalInterval: (maxX <= 0 ? 1 : maxX) / 4,
+                        drawVerticalLine: false,
+                        horizontalInterval: 25,
                         getDrawingHorizontalLine: (_) => FlLine(
-                          color: gridColor,
-                          strokeWidth: 1,
-                          dashArray: const [4, 4],
-                        ),
-                        getDrawingVerticalLine: (_) => FlLine(
                           color: gridColor,
                           strokeWidth: 1,
                           dashArray: const [4, 4],
@@ -862,41 +837,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       titlesData: FlTitlesData(
                         topTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
-                        ),
+                            sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
-                            reservedSize: 34,
-                            interval: tempInterval > 0 ? tempInterval : 1,
+                            reservedSize: 28,
+                            interval: 25,
                             getTitlesWidget: (value, meta) => Text(
-                              value.toStringAsFixed(0),
+                              value.toInt().toString(),
                               style: _style(muted, size: 10),
                             ),
-                          ),
-                        ),
-                        rightTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: 34,
-                            interval: tempRange / 4,
-                            getTitlesWidget: (value, meta) {
-                              final humid =
-                                  ((value - tempMin) / tempRange) * 100;
-                              return Text(
-                                humid.clamp(0, 100).toStringAsFixed(0),
-                                style: _style(muted, size: 10),
-                              );
-                            },
                           ),
                         ),
                         bottomTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 20,
-                            interval: (maxX <= 0 ? 1 : maxX) / 3,
+                            interval: (maxX <= 0 ? 1 : maxX) / 4,
                             getTitlesWidget: (value, meta) => Text(
-                              _timeLabelFromMinutes(allData, value),
+                              _timeLabelFromMinutes(tempData, value),
                               style: _style(muted, size: 10),
                             ),
                           ),
@@ -905,17 +866,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       lineTouchData: LineTouchData(
                         touchTooltipData: LineTouchTooltipData(
                           getTooltipColor: (_) => comp,
-                          getTooltipItems: (spots) => spots
-                              .map(
-                                (spot) => LineTooltipItem(
-                                  '${_timeLabelFromMinutes(allData, spot.x)}\n${spot.y.toStringAsFixed(1)}',
-                                  _style(text, size: 12),
-                                ),
-                              )
-                              .toList(),
+                          getTooltipItems: (spots) => spots.map((spot) {
+                            final isTemp = spot.barIndex == 0;
+                            return LineTooltipItem(
+                              '${_timeLabelFromMinutes(tempData, spot.x)}\n'
+                              '${spot.y.toStringAsFixed(1)}'
+                              '${isTemp ? '°C' : '%'}',
+                              _style(isTemp ? _cTemp : _cHumid, size: 12),
+                            );
+                          }).toList(),
                         ),
                       ),
                       lineBarsData: [
+                        // ── Temperature ──────────────────────────────────
                         LineChartBarData(
                           spots: tempSpots,
                           isCurved: true,
@@ -923,7 +886,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           barWidth: 2,
                           isStrokeCapRound: true,
                           dotData: const FlDotData(show: false),
+                          belowBarData: BarAreaData(
+                            show: true,
+                            color: _cTemp.withValues(alpha: 0.10),
+                          ),
                         ),
+                        // ── Humidity ─────────────────────────────────────
                         LineChartBarData(
                           spots: humidSpots,
                           isCurved: true,
@@ -931,6 +899,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           barWidth: 2,
                           isStrokeCapRound: true,
                           dotData: const FlDotData(show: false),
+                          belowBarData: BarAreaData(
+                            show: true,
+                            color: _cHumid.withValues(alpha: 0.10),
+                          ),
                         ),
                       ],
                     ),
@@ -977,7 +949,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     double size = 14,
     FontWeight weight = FontWeight.bold,
     double? letterSpacing,
-    String fontFamily = 'GermaniaOne',
+    String fontFamily = 'Poppins',
   }) => TextStyle(
     color: color,
     fontSize: size,
@@ -1010,7 +982,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         style: TextStyle(
           color: color,
           fontSize: 11,
-          fontFamily: 'GermaniaOne',
+          fontFamily: 'Poppins',
           decoration: TextDecoration.none,
         ),
       ),
@@ -1074,13 +1046,13 @@ class _SensorCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 30,
+                height: 30,
                 decoration: BoxDecoration(
                   color: accentColor,
                   borderRadius: BorderRadius.circular(9),
                 ),
-                child: Icon(icon, color: Colors.white, size: 18),
+                child: Icon(icon, color: Colors.white, size: 16),
               ),
               const Spacer(),
               Text(
@@ -1089,7 +1061,7 @@ class _SensorCard extends StatelessWidget {
                   color: muted,
                   fontSize: 10,
                   letterSpacing: 0.6,
-                  fontFamily: 'GermaniaOne',
+                  fontFamily: 'Poppins',
                   fontWeight: FontWeight.bold,
                   decoration: TextDecoration.none,
                 ),
@@ -1105,8 +1077,8 @@ class _SensorCard extends StatelessWidget {
               duration: const Duration(milliseconds: 900),
               curve: Curves.easeOutBack,
               builder: (context, animatedProgress, _) => SizedBox(
-                width: 110,
-                height: 110,
+                width: 90,
+                height: 90,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
@@ -1114,7 +1086,7 @@ class _SensorCard extends StatelessWidget {
                     SizedBox.expand(
                       child: CircularProgressIndicator(
                         value: 1.0,
-                        strokeWidth: 11,
+                        strokeWidth: 9,
                         color: trackColor,
                         strokeCap: StrokeCap.round,
                       ),
@@ -1123,7 +1095,7 @@ class _SensorCard extends StatelessWidget {
                     SizedBox.expand(
                       child: CircularProgressIndicator(
                         value: animatedProgress,
-                        strokeWidth: 11,
+                        strokeWidth: 9,
                         color: accentColor,
                         backgroundColor: Colors.transparent,
                         strokeCap: StrokeCap.round,
@@ -1137,9 +1109,9 @@ class _SensorCard extends StatelessWidget {
                           displayValue,
                           style: TextStyle(
                             color: text,
-                            fontSize: 20,
+                            fontSize: 17,
                             fontWeight: FontWeight.bold,
-                            fontFamily: 'GermaniaOne',
+                            fontFamily: 'Poppins',
                             decoration: TextDecoration.none,
                           ),
                         ),
@@ -1149,7 +1121,7 @@ class _SensorCard extends StatelessWidget {
                             style: TextStyle(
                               color: muted,
                               fontSize: 11,
-                              fontFamily: 'GermaniaOne',
+                              fontFamily: 'Poppins',
                               decoration: TextDecoration.none,
                             ),
                           ),

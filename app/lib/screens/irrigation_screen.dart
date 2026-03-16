@@ -83,7 +83,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
           children: [
             Text("Irrigation History",
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontFamily: 'GermaniaOne',
+                  fontFamily: 'Poppins',
                   fontSize: 24,
                 )),
             const SizedBox(height: 8),

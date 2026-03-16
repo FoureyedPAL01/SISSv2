@@ -34,7 +34,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      fontFamily: 'GermaniaOne',
+      fontFamily: 'Poppins',
       primaryColor: teal,
       scaffoldBackgroundColor: paleMint,
       colorScheme: colorScheme,
@@ -51,7 +51,7 @@ class AppTheme {
           color: night,
           fontSize: 20,
           fontWeight: FontWeight.bold,
-          fontFamily: 'GermaniaOne',
+          fontFamily: 'Poppins',
         ),
       ),
 

@@ -67,30 +67,11 @@ flutter:
     - .env
     - assets/fonts/
   fonts:
-    - family: EBGaramond
+    - family: Poppins
       fonts:
-        - asset: assets/fonts/EBGaramond-VariableFont_wght.ttf
-    - family: Bungee
-      fonts:
-        - asset: assets/fonts/Bungee-Regular.ttf
-    - family: Merriweather
-      fonts:
-        - asset: assets/fonts/Merriweather-VariableFont_opsz,wdth,wght.ttf
-    - family: BungeeInline
-      fonts:
-        - asset: assets/fonts/BungeeInline-Regular.ttf
-    - family: Quicksand
-      fonts:
-        - asset: assets/fonts/Quicksand-VariableFont_wght.ttf
-    - family: GermaniaOne
-      fonts:
-        - asset: assets/fonts/GermaniaOne-Regular.ttf
-    - family: ChelseaMarket
-      fonts:
-        - asset: assets/fonts/ChelseaMarket-Regular.ttf
-    - family: SpecialElite
-      fonts:
-        - asset: assets/fonts/SpecialElite-Regular.ttf
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

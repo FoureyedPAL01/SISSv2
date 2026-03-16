@@ -13,60 +13,96 @@ import 'screens/water_usage_screen.dart';
 import 'screens/fertigation_screen.dart';
 import 'screens/alerts_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/link_device_screen.dart';
 import 'theme.dart';
 import 'dart:async';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 
-final GoRouter appRouter = GoRouter(
+// Combines auth stream AND AppStateProvider so the router re-evaluates
+// redirect whenever either changes — fixes the stuck link-device screen.
+class _RouterRefreshListenable extends ChangeNotifier {
+  late final StreamSubscription<dynamic> _authSub;
+  final AppStateProvider _appState;
+
+  _RouterRefreshListenable(Stream<dynamic> authStream, this._appState) {
+    // Re-evaluate redirect on every auth change
+    _authSub = authStream.listen((_) => notifyListeners());
+    // Re-evaluate redirect whenever AppStateProvider notifies
+    // (e.g. after device is claimed and hasDevice becomes true)
+    _appState.addListener(notifyListeners);
+  }
+
+  @override
+  void dispose() {
+    _authSub.cancel();
+    _appState.removeListener(notifyListeners);
+    super.dispose();
+  }
+}
+
+GoRouter createRouter(AppStateProvider appState) => GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
+
+  // Now refreshes on BOTH auth changes and AppStateProvider changes
+  refreshListenable: _RouterRefreshListenable(
+    Supabase.instance.client.auth.onAuthStateChange,
+    appState,
+  ),
 
   redirect: (BuildContext context, GoRouterState state) {
     final session = Supabase.instance.client.auth.currentSession;
     final isOnLoginPage = state.matchedLocation == '/login';
+    final isOnLinkPage  = state.matchedLocation == '/link-device';
+    final hasDevice     = appState.hasDevice;
 
-    // Not logged in and not already on login → go to login
+    // Not logged in → go to login
     if (session == null && !isOnLoginPage) return '/login';
 
-    // Logged in but somehow on the login page → go to dashboard
-    if (session != null && isOnLoginPage) return '/';
+    // Logged in but on login page → check device
+    if (session != null && isOnLoginPage) {
+      return hasDevice ? '/' : '/link-device';
+    }
 
-    // Otherwise, proceed normally
+    // Logged in but no device → link-device screen
+    if (session != null && !hasDevice && !isOnLinkPage) return '/link-device';
+
+    // Logged in with device but on link-device → dashboard
+    if (session != null && hasDevice && isOnLinkPage) return '/';
+
     return null;
   },
 
-  refreshListenable: GoRouterRefreshStream(
-    Supabase.instance.client.auth.onAuthStateChange,
-  ),
-
   routes: [
-    // ── Login route (outside the ShellRoute so it has no nav bar) ──────────
     GoRoute(
       path: '/login',
       builder: (context, state) => const LoginScreen(),
     ),
-
+    GoRoute(
+      path: '/link-device',
+      builder: (context, state) => const LinkDeviceScreen(),
+    ),
     ShellRoute(
       navigatorKey: _shellNavigatorKey,
       builder: (context, state, child) => AppLayoutScaffold(child: child),
       routes: [
-        GoRoute(path: '/',           builder: (_, _) => const DashboardScreen()),
-        GoRoute(path: '/irrigation', builder: (_, _) => const IrrigationScreen()),
-        GoRoute(path: '/weather',    builder: (_, _) => const WeatherScreen()),
-        GoRoute(path: '/pump',       builder: (_, _) => const PumpControlScreen()),
-        GoRoute(path: '/crops',      builder: (_, _) => const CropProfilesScreen()),
-        GoRoute(path: '/water',      builder: (_, _) => const WaterUsageScreen()),
-        GoRoute(path: '/fertigation',builder: (_, _) => const FertigationScreen()),
-        GoRoute(path: '/alerts',     builder: (_, _) => const AlertsScreen()),
-        GoRoute(path: '/settings',   builder: (_, _) => const SettingsScreen()),
+        GoRoute(path: '/',            builder: (_, __) => const DashboardScreen()),
+        GoRoute(path: '/irrigation',  builder: (_, __) => const IrrigationScreen()),
+        GoRoute(path: '/weather',     builder: (_, __) => const WeatherScreen()),
+        GoRoute(path: '/pump',        builder: (_, __) => const PumpControlScreen()),
+        GoRoute(path: '/crops',       builder: (_, __) => const CropProfilesScreen()),
+        GoRoute(path: '/water',       builder: (_, __) => const WaterUsageScreen()),
+        GoRoute(path: '/fertigation', builder: (_, __) => const FertigationScreen()),
+        GoRoute(path: '/alerts',      builder: (_, __) => const AlertsScreen()),
+        GoRoute(path: '/settings',    builder: (_, __) => const SettingsScreen()),
       ],
     ),
   ],
 );
 
-// Inside router.dart — replace AppLayoutScaffold class
+// ── AppLayoutScaffold ──────────────────────────────────────────────────────
 
 class AppLayoutScaffold extends StatelessWidget {
   const AppLayoutScaffold({super.key, required this.child});
@@ -77,26 +113,25 @@ class AppLayoutScaffold extends StatelessWidget {
     final String location = GoRouterState.of(context).uri.path;
     final colors = Theme.of(context).colorScheme;
 
-    // Map route → bottom nav index (only the 5 main tabs)
     int currentIndex = switch (location) {
-      '/'               => 0,
-      var s when s.startsWith('/irrigation') => 1,
-      var s when s.startsWith('/pump')       => 2,
-      var s when s.startsWith('/weather')    => 3,
-      var s when s.startsWith('/settings')   => 4,
-      _                 => 0,
+      '/'                                      => 0,
+      var s when s.startsWith('/irrigation')   => 1,
+      var s when s.startsWith('/pump')         => 2,
+      var s when s.startsWith('/weather')      => 3,
+      var s when s.startsWith('/settings')     => 4,
+      _                                        => 0,
     };
     int drawerSelectedIndex = switch (location) {
-      '/'               => 0,
-      var s when s.startsWith('/irrigation') => 1,
-      var s when s.startsWith('/pump')       => 2,
-      var s when s.startsWith('/weather')    => 3,
-      var s when s.startsWith('/crops')      => 4,
-      var s when s.startsWith('/water')      => 5,
-      var s when s.startsWith('/fertigation') => 6,
-      var s when s.startsWith('/alerts')     => 7,
-      var s when s.startsWith('/settings')   => 8,
-      _                 => 0,
+      '/'                                       => 0,
+      var s when s.startsWith('/irrigation')    => 1,
+      var s when s.startsWith('/pump')          => 2,
+      var s when s.startsWith('/weather')       => 3,
+      var s when s.startsWith('/crops')         => 4,
+      var s when s.startsWith('/water')         => 5,
+      var s when s.startsWith('/fertigation')   => 6,
+      var s when s.startsWith('/alerts')        => 7,
+      var s when s.startsWith('/settings')      => 8,
+      _                                         => 0,
     };
 
     return Scaffold(
@@ -104,7 +139,7 @@ class AppLayoutScaffold extends StatelessWidget {
         title: Text(
           'Smart Irrigation System F',
           style: TextStyle(
-            fontFamily: 'GermaniaOne',
+            fontFamily: 'Poppins',
             fontSize: 20,
             color: colors.onSurface,
             fontWeight: FontWeight.bold,
@@ -120,11 +155,7 @@ class AppLayoutScaffold extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.person_outline,
-                      size: 18,
-                      color: colors.onSurface,
-                    ),
+                    Icon(Icons.person_outline, size: 18, color: colors.onSurface),
                     const SizedBox(width: 4),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 120),
@@ -148,28 +179,31 @@ class AppLayoutScaffold extends StatelessWidget {
         ],
       ),
 
-      // ── M3 NavigationDrawer ─────────────────────────────────────────────
       drawer: NavigationDrawer(
         selectedIndex: drawerSelectedIndex,
         onDestinationSelected: (index) {
-          Navigator.pop(context); // close drawer
+          Navigator.pop(context);
           switch (index) {
-            case 0: context.go('/');             break;
-            case 1: context.go('/irrigation');   break;
-            case 2: context.go('/pump');          break;
-            case 3: context.go('/weather');       break;
-            case 4: context.go('/crops');         break;
-            case 5: context.go('/water');         break;
-            case 6: context.go('/fertigation');   break;
-            case 7: context.go('/alerts');        break;
-            case 8: context.go('/settings');      break;
+            case 0: context.go('/');              break;
+            case 1: context.go('/irrigation');    break;
+            case 2: context.go('/pump');           break;
+            case 3: context.go('/weather');        break;
+            case 4: context.go('/crops');          break;
+            case 5: context.go('/water');          break;
+            case 6: context.go('/fertigation');    break;
+            case 7: context.go('/alerts');         break;
+            case 8: context.go('/settings');       break;
           }
         },
         children: [
           Padding(
-            padding: EdgeInsets.fromLTRB(28, 24, 16, 10),
+            padding: const EdgeInsets.fromLTRB(28, 24, 16, 10),
             child: Text('SISF',
-                style: TextStyle(fontFamily: 'GermaniaOne', fontSize: 22, color: colors.primary, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 22,
+                    color: colors.primary,
+                    fontWeight: FontWeight.bold)),
           ),
           Consumer<AppStateProvider>(
             builder: (context, provider, _) {
@@ -179,20 +213,14 @@ class AppLayoutScaffold extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(28, 16, 16, 8),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.person_outline,
-                      size: 20,
-                      color: colors.primary,
-                    ),
+                    Icon(Icons.person_outline, size: 20, color: colors.primary),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         username,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: colors.primary,
-                        ),
+                            fontWeight: FontWeight.bold, color: colors.primary),
                       ),
                     ),
                   ],
@@ -200,170 +228,84 @@ class AppLayoutScaffold extends StatelessWidget {
               );
             },
           ),
-          // NavigationDrawerDestination is the M3 drawer item widget
           NavigationDrawerDestination(
             icon: Icon(Icons.home_outlined, color: colors.onSurface),
             selectedIcon: const Icon(Icons.home, color: Colors.white),
-            label: Text(
-              'Dashboard',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: drawerSelectedIndex == 0
-                    ? Colors.white
-                    : colors.onSurface,
-              ),
-            ),
+            label: Text('Dashboard',
+                style: TextStyle(fontWeight: FontWeight.bold,
+                    color: drawerSelectedIndex == 0 ? Colors.white : colors.onSurface)),
           ),
           NavigationDrawerDestination(
             icon: Icon(Icons.water_drop_outlined, color: colors.onSurface),
             selectedIcon: const Icon(Icons.water_drop, color: Colors.white),
-            label: Text(
-              'Irrigation',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: drawerSelectedIndex == 1
-                    ? Colors.white
-                    : colors.onSurface,
-              ),
-            ),
+            label: Text('Irrigation',
+                style: TextStyle(fontWeight: FontWeight.bold,
+                    color: drawerSelectedIndex == 1 ? Colors.white : colors.onSurface)),
           ),
           NavigationDrawerDestination(
             icon: Icon(Icons.power_settings_new_outlined, color: colors.onSurface),
             selectedIcon: const Icon(Icons.power_settings_new, color: Colors.white),
-            label: Text(
-              'Pump Control',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: drawerSelectedIndex == 2
-                    ? Colors.white
-                    : colors.onSurface,
-              ),
-            ),
+            label: Text('Pump Control',
+                style: TextStyle(fontWeight: FontWeight.bold,
+                    color: drawerSelectedIndex == 2 ? Colors.white : colors.onSurface)),
           ),
           NavigationDrawerDestination(
             icon: Icon(Icons.cloud_outlined, color: colors.onSurface),
             selectedIcon: const Icon(Icons.cloud, color: Colors.white),
-            label: Text(
-              'Weather',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: drawerSelectedIndex == 3
-                    ? Colors.white
-                    : colors.onSurface,
-              ),
-            ),
+            label: Text('Weather',
+                style: TextStyle(fontWeight: FontWeight.bold,
+                    color: drawerSelectedIndex == 3 ? Colors.white : colors.onSurface)),
           ),
           NavigationDrawerDestination(
             icon: Icon(Icons.eco_outlined, color: colors.onSurface),
             selectedIcon: const Icon(Icons.eco, color: Colors.white),
-            label: Text(
-              'Crop Profiles',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: drawerSelectedIndex == 4
-                    ? Colors.white
-                    : colors.onSurface,
-              ),
-            ),
+            label: Text('Crop Profiles',
+                style: TextStyle(fontWeight: FontWeight.bold,
+                    color: drawerSelectedIndex == 4 ? Colors.white : colors.onSurface)),
           ),
           NavigationDrawerDestination(
             icon: Icon(Icons.bar_chart_outlined, color: colors.onSurface),
             selectedIcon: const Icon(Icons.bar_chart, color: Colors.white),
-            label: Text(
-              'Water Usage',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: drawerSelectedIndex == 5
-                    ? Colors.white
-                    : colors.onSurface,
-              ),
-            ),
+            label: Text('Water Usage',
+                style: TextStyle(fontWeight: FontWeight.bold,
+                    color: drawerSelectedIndex == 5 ? Colors.white : colors.onSurface)),
           ),
           NavigationDrawerDestination(
             icon: Icon(Icons.science_outlined, color: colors.onSurface),
             selectedIcon: const Icon(Icons.science, color: Colors.white),
-            label: Text(
-              'Fertigation',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: drawerSelectedIndex == 6
-                    ? Colors.white
-                    : colors.onSurface,
-              ),
-            ),
+            label: Text('Fertigation',
+                style: TextStyle(fontWeight: FontWeight.bold,
+                    color: drawerSelectedIndex == 6 ? Colors.white : colors.onSurface)),
           ),
           NavigationDrawerDestination(
             icon: Icon(Icons.notifications_outlined, color: colors.onSurface),
             selectedIcon: const Icon(Icons.notifications, color: Colors.white),
-            label: Text(
-              'Alerts',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: drawerSelectedIndex == 7
-                    ? Colors.white
-                    : colors.onSurface,
-              ),
-            ),
+            label: Text('Alerts',
+                style: TextStyle(fontWeight: FontWeight.bold,
+                    color: drawerSelectedIndex == 7 ? Colors.white : colors.onSurface)),
           ),
           NavigationDrawerDestination(
             icon: Icon(Icons.settings_outlined, color: colors.onSurface),
             selectedIcon: const Icon(Icons.settings, color: Colors.white),
-            label: Text(
-              'Settings',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: drawerSelectedIndex == 8
-                    ? Colors.white
-                    : colors.onSurface,
-              ),
-            ),
+            label: Text('Settings',
+                style: TextStyle(fontWeight: FontWeight.bold,
+                    color: drawerSelectedIndex == 8 ? Colors.white : colors.onSurface)),
           ),
         ],
       ),
 
       body: child,
 
-      // ── M3 NavigationBar (replaces BottomNavigationBar) ─────────────────
       bottomNavigationBar: Container(
         color: Theme.of(context).scaffoldBackgroundColor,
         padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
         child: Row(
           children: [
-            _BottomNavItem(
-              label: 'Home',
-              icon: Icons.home_outlined,
-              selectedIcon: Icons.home,
-              selected: currentIndex == 0,
-              onTap: () => context.go('/'),
-            ),
-            _BottomNavItem(
-              label: 'Irrigate',
-              icon: Icons.water_drop_outlined,
-              selectedIcon: Icons.water_drop,
-              selected: currentIndex == 1,
-              onTap: () => context.go('/irrigation'),
-            ),
-            _BottomNavItem(
-              label: 'Pump',
-              icon: Icons.power_settings_new_outlined,
-              selectedIcon: Icons.power_settings_new,
-              selected: currentIndex == 2,
-              onTap: () => context.go('/pump'),
-            ),
-            _BottomNavItem(
-              label: 'Weather',
-              icon: Icons.cloud_outlined,
-              selectedIcon: Icons.cloud,
-              selected: currentIndex == 3,
-              onTap: () => context.go('/weather'),
-            ),
-            _BottomNavItem(
-              label: 'Settings',
-              icon: Icons.settings_outlined,
-              selectedIcon: Icons.settings,
-              selected: currentIndex == 4,
-              onTap: () => context.go('/settings'),
-            ),
+            _BottomNavItem(label: 'Home',     icon: Icons.home_outlined,              selectedIcon: Icons.home,              selected: currentIndex == 0, onTap: () => context.go('/')),
+            _BottomNavItem(label: 'Irrigate', icon: Icons.water_drop_outlined,        selectedIcon: Icons.water_drop,        selected: currentIndex == 1, onTap: () => context.go('/irrigation')),
+            _BottomNavItem(label: 'Pump',     icon: Icons.power_settings_new_outlined, selectedIcon: Icons.power_settings_new, selected: currentIndex == 2, onTap: () => context.go('/pump')),
+            _BottomNavItem(label: 'Weather',  icon: Icons.cloud_outlined,             selectedIcon: Icons.cloud,             selected: currentIndex == 3, onTap: () => context.go('/weather')),
+            _BottomNavItem(label: 'Settings', icon: Icons.settings_outlined,          selectedIcon: Icons.settings,          selected: currentIndex == 4, onTap: () => context.go('/settings')),
           ],
         ),
       ),
@@ -408,19 +350,14 @@ class _BottomNavItem extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    selected ? selectedIcon : icon,
-                    color: selected ? Colors.white : colors.onSurface,
-                  ),
+                  Icon(selected ? selectedIcon : icon,
+                      color: selected ? Colors.white : colors.onSurface),
                   const SizedBox(height: 4),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: selected ? Colors.white : colors.onSurface,
-                    ),
-                  ),
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: selected ? Colors.white : colors.onSurface)),
                 ],
               ),
             ),
@@ -428,19 +365,5 @@ class _BottomNavItem extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class GoRouterRefreshStream extends ChangeNotifier {
-  late final StreamSubscription<dynamic> _subscription;
-
-  GoRouterRefreshStream(Stream<dynamic> stream) {
-    _subscription = stream.listen((_) => notifyListeners());
-  }
-
-  @override
-  void dispose() {
-    _subscription.cancel();
-    super.dispose();
   }
 }

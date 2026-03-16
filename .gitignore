@@ -51,13 +51,28 @@ macos/Flutter/GeneratedPluginRegistrant.swift
 windows/flutter/generated_plugin_registrant.cc
 windows/flutter/generated_plugins.cmake
 
+# Linux Generated
+linux/flutter/generated_plugin_registrant.cc
+linux/flutter/generated_plugin_registrant.h
+linux/flutter/generated_plugins.cmake
+
+# App-specific build outputs
+app/android/app/build/
+app/test/
+
+# Log files
+*.log
+
 # Env / secrets
 .env
-.env.*
-
-# Scripts (local utilities)
-*.txt
-*.py
+.env.local
+.env.production
+!.env.example
 
 # Supabase
 supabase/.temp/
+app/supabase/.temp/
+app/supabase/config.toml
+
+# ESP32 / Arduino
+esp32/config.h

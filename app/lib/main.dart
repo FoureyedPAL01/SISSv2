@@ -19,12 +19,20 @@ void main() async {
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
+  // Create AppStateProvider once and pass to router
+  final appState = AppStateProvider();
+
   runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AppStateProvider()),
-      ],
-      child: const SmartIrrigationApp(),
+    ChangeNotifierProvider<AppStateProvider>.value(
+      value: appState,
+      child: MaterialApp.router(
+        title: 'Smart Irrigation',
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.light,
+        routerConfig: createRouter(appState),
+        debugShowCheckedModeBanner: false,
+      ),
     ),
   );
 }
@@ -34,14 +42,6 @@ class SmartIrrigationApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Smart Irrigation',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode:  ThemeMode.light,      // follows the OS setting automatically
-      routerConfig: appRouter,
-      debugShowCheckedModeBanner: false,
-    );
+    return const SizedBox.shrink();
   }
 }
-

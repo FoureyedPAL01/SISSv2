@@ -8,46 +8,50 @@ class AppStateProvider extends ChangeNotifier {
   String? _deviceId;
   Map<String, dynamic> _latestSensorData = {};
   List<Map<String, dynamic>> _sensorHistory = [];
-  
+
   // User profile and settings
   Map<String, dynamic>? _userProfile;
   bool _isSaving = false;
   String? _saveError;
-  
+
   // Active crop profile
   Map<String, dynamic>? _activeCropProfile;
-  
+
   // Water usage data
   List<Map<String, dynamic>> _weeklyWaterUsage = [];
-  
+
   // Device and connectivity status
   bool _isDeviceOnline = false;
   bool _isApiConnected = false;
   DateTime? _deviceLastSeen;
   String? _deviceName;
-  
+
   bool get isLoading => _isLoading;
   String? get deviceId => _deviceId;
   Map<String, dynamic> get latestSensorData => _latestSensorData;
   List<Map<String, dynamic>> get sensorHistory => _sensorHistory;
-  
+
   // Getters for user profile
   Map<String, dynamic>? get userProfile => _userProfile;
   bool get isSaving => _isSaving;
   String? get saveError => _saveError;
-  
+
   // Getter for active crop profile
   Map<String, dynamic>? get activeCropProfile => _activeCropProfile;
-  
+
   // Getter for weekly water usage
   List<Map<String, dynamic>> get weeklyWaterUsage => _weeklyWaterUsage;
-  
+
   // Getters for connectivity
   bool get isDeviceOnline => _isDeviceOnline;
   bool get isApiConnected => _isApiConnected;
   DateTime? get deviceLastSeen => _deviceLastSeen;
   String? get deviceName => _deviceName;
-  
+
+  // True once a device row has been found for the logged-in user.
+  // GoRouter reads this to decide whether to redirect to /link-device.
+  bool get hasDevice => _deviceId != null;
+
   // Convenience getters for profile fields
   String get username => _userProfile?['username'] ?? '';
   String get tempUnit => _userProfile?['temp_unit'] ?? 'celsius';
@@ -65,12 +69,11 @@ class AppStateProvider extends ChangeNotifier {
   RealtimeChannel? _realtimeChannel;
 
   AppStateProvider() {
-    _init();
-    // ── Listen to auth state changes ──────────────────────────────────────
+    Future.microtask(_init);
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       final event = data.event;
       if (event == AuthChangeEvent.signedIn) {
-        _init();
+        Future.microtask(_init);
       } else if (event == AuthChangeEvent.signedOut) {
         _clearRealtimeChannel();
         _deviceId = null;
@@ -102,7 +105,6 @@ class AppStateProvider extends ChangeNotifier {
     }
   }
 
-  /// Public method for pull-to-refresh on the dashboard.
   Future<void> refresh() async {
     await _init();
   }
@@ -134,7 +136,7 @@ class AppStateProvider extends ChangeNotifier {
           .limit(1);
 
       debugPrint('[DEBUG] Devices response: $response');
-      
+
       if (response.isNotEmpty) {
         _deviceId = response[0]['id'];
         debugPrint('[DEBUG] Device found: $_deviceId');
@@ -143,7 +145,7 @@ class AppStateProvider extends ChangeNotifier {
         debugPrint('[DEBUG] No device linked to this user');
       }
     } catch (e) {
-      debugPrint("[DEBUG] Error fetching devices: $e");
+      debugPrint('[DEBUG] Error fetching devices: $e');
     }
   }
 
@@ -152,10 +154,8 @@ class AppStateProvider extends ChangeNotifier {
 
     debugPrint('[DEBUG] Subscribing to sensor data for device: $_deviceId');
 
-    // Clean up any previous channel before creating a new one
     _clearRealtimeChannel();
 
-    // Fetch the latest existing row so the dashboard isn't blank on first load
     final initial = await Supabase.instance.client
         .from('sensor_readings')
         .select()
@@ -164,14 +164,11 @@ class AppStateProvider extends ChangeNotifier {
         .limit(1)
         .maybeSingle();
 
-    debugPrint('[DEBUG] Initial sensor data: $initial');
-
     if (initial != null) {
       _latestSensorData = initial;
       notifyListeners();
     }
 
-    // Fetch historical data for charts (last 60 readings)
     final historyResponse = await Supabase.instance.client
         .from('sensor_readings')
         .select('soil_moisture, temperature_c, humidity, flow_litres, recorded_at')
@@ -179,19 +176,13 @@ class AppStateProvider extends ChangeNotifier {
         .order('recorded_at', ascending: false)
         .limit(60);
 
-    debugPrint('[DEBUG] History response count: ${historyResponse.length}');
-
     if (historyResponse.isNotEmpty) {
       _sensorHistory = historyResponse.reversed.toList();
-      debugPrint('[DEBUG] Sensor history loaded: ${_sensorHistory.length} records');
       notifyListeners();
-    } else {
-      debugPrint('[DEBUG] No historical data found for this device');
     }
 
-    // Then listen for new inserts in real-time
     _realtimeChannel = Supabase.instance.client
-        .channel('public:sensor_readings:$_deviceId')   // unique channel per device
+        .channel('public:sensor_readings:$_deviceId')
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
@@ -202,24 +193,19 @@ class AppStateProvider extends ChangeNotifier {
             value: _deviceId!,
           ),
           callback: (payload) {
-            debugPrint('[DEBUG] Realtime update received: ${payload.newRecord}');
             _latestSensorData = payload.newRecord;
             _sensorHistory.add(payload.newRecord);
-            if (_sensorHistory.length > 60) {
-              _sensorHistory.removeAt(0);
-            }
+            if (_sensorHistory.length > 60) _sensorHistory.removeAt(0);
             notifyListeners();
           },
         )
         .subscribe();
-    debugPrint('[DEBUG] Subscribed to realtime channel');
   }
 
   Future<void> _fetchActiveCropProfile() async {
     if (_deviceId == null) return;
 
     try {
-      // Get the crop_profile_id from the device
       final device = await Supabase.instance.client
           .from('devices')
           .select('crop_profile_id')
@@ -233,7 +219,6 @@ class AppStateProvider extends ChangeNotifier {
         return;
       }
 
-      // Fetch the crop profile details
       final profile = await Supabase.instance.client
           .from('crop_profiles')
           .select()
@@ -247,122 +232,122 @@ class AppStateProvider extends ChangeNotifier {
     }
   }
 
-  // ── Sign Out ──────────────────────────────────────────────────────────────
-  // Call this from SettingsScreen. The auth listener above handles state clear.
-  // The GoRouterRefreshStream in router.dart handles the redirect to /login.
   Future<void> signOut() async {
     await Supabase.instance.client.auth.signOut();
   }
 
-  // ── Crop Profile Methods ─────────────────────────────────────────────────
   Future<void> refreshCropProfile() async {
     await _fetchActiveCropProfile();
   }
 
-  // ── Water Usage Methods ─────────────────────────────────────────────────
+  // ── Water Usage ──────────────────────────────────────────────────────────
+  // Reads from pump_logs (which exists in your schema) instead of
+  // water_usage (which does not exist).
   Future<void> fetchWeeklyWaterUsage() async {
     if (_deviceId == null) return;
 
     try {
-      // Use Supabase functions or direct REST API
-      // Try fetching from water_usage table directly via Supabase
-      final now = DateTime.now();
-      final weekAgo = now.subtract(const Duration(days: 7));
-      
-      final response = await Supabase.instance.client
-          .from('water_usage')
-          .select('date, total_liters')
-          .eq('device_id', _deviceId!)
-          .gte('date', weekAgo.toIso8601String().split('T')[0])
-          .order('date', ascending: true);
+      final weekAgo = DateTime.now().subtract(const Duration(days: 7));
 
-      if (response.isNotEmpty) {
-        _weeklyWaterUsage = (response as List).map((e) => {
-          'date': e['date'] ?? '',
-          'total_liters': (e['total_liters'] as num?)?.toDouble() ?? 0.0,
-        }).toList();
-      } else {
-        // Return empty data for each day of the week
-        _weeklyWaterUsage = List.generate(7, (i) {
-          final day = weekAgo.add(Duration(days: i));
-          return {
-            'date': day.toIso8601String().split('T')[0],
-            'total_liters': 0.0,
-          };
-        });
+      final response = await Supabase.instance.client
+          .from('pump_logs')
+          .select('pump_on_at, water_used_litres')
+          .eq('device_id', _deviceId!)
+          .gte('pump_on_at', weekAgo.toIso8601String())
+          .order('pump_on_at', ascending: true);
+
+      // Group by date and sum water used per day
+      final Map<String, double> dailyTotals = {};
+      for (final row in response) {
+        final date = (row['pump_on_at'] as String).split('T')[0];
+        final litres = (row['water_used_litres'] as num?)?.toDouble() ?? 0.0;
+        dailyTotals[date] = (dailyTotals[date] ?? 0.0) + litres;
       }
+
+      // Fill in missing days with 0
+      _weeklyWaterUsage = List.generate(7, (i) {
+        final day = weekAgo.add(Duration(days: i));
+        final date = day.toIso8601String().split('T')[0];
+        return {
+          'date': date,
+          'total_liters': dailyTotals[date] ?? 0.0,
+        };
+      });
+
       notifyListeners();
     } catch (e) {
       debugPrint('[DEBUG] Error fetching water usage: $e');
-      // Return empty data on error
       _weeklyWaterUsage = [];
     }
   }
-   
-  // ── User Profile Methods ──────────────────────────────────────────────────
+
+  // ── User Profile ─────────────────────────────────────────────────────────
+  // FIX: users table primary key is 'id', not 'user_id'
   Future<void> fetchUserProfile() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
-    
+
     try {
       final response = await Supabase.instance.client
-          .from('user_profiles')
+          .from('users')
           .select()
-          .eq('user_id', userId)
+          .eq('id', userId)           // ← FIXED: was 'user_id'
           .maybeSingle();
-      
+
       _userProfile = response;
-      
+
       if (_userProfile == null) {
-        await Supabase.instance.client.from('user_profiles').insert({
-          'user_id': userId,
+        // Row missing — insert it (the trigger should have done this on signup,
+        // but insert manually as a fallback)
+        await Supabase.instance.client.from('users').insert({
+          'id': userId,               // ← FIXED: was 'user_id'
         });
         _userProfile = await Supabase.instance.client
-            .from('user_profiles')
+            .from('users')
             .select()
-            .eq('user_id', userId)
+            .eq('id', userId)         // ← FIXED: was 'user_id'
             .single();
       }
-      
+
       notifyListeners();
     } catch (e) {
       debugPrint('[DEBUG] Error fetching user profile: $e');
     }
   }
-  
+
   Future<void> updateUsername(String username) async {
     await _updateProfileField('username', username);
   }
-  
+
   Future<void> updateTempUnit(String unit) async {
     await _updateProfileField('temp_unit', unit);
   }
-  
+
   Future<void> updateVolumeUnit(String unit) async {
     await _updateProfileField('volume_unit', unit);
   }
-  
+
   Future<void> updateTimezone(String tz) async {
     await _updateProfileField('timezone', tz);
   }
-  
+
   Future<void> updateNotificationSetting(String field, bool value) async {
     await _updateProfileField(field, value);
   }
-  
+
   Future<void> _updateProfileField(String field, dynamic value) async {
     if (_userProfile == null) return;
-    
+
     _isSaving = true;
     _saveError = null;
     notifyListeners();
-    
+
     try {
       await Supabase.instance.client
-          .from('user_profiles')
-          .update({field: value, 'updated_at': DateTime.now().toIso8601String()})
-          .eq('user_id', Supabase.instance.client.auth.currentUser!.id);
-      
+          .from('users')
+          .update({field: value})
+          .eq('id', Supabase.instance.client.auth.currentUser!.id); // ← FIXED: was 'user_id'
+
       _userProfile![field] = value;
       _isSaving = false;
       notifyListeners();
@@ -373,27 +358,27 @@ class AppStateProvider extends ChangeNotifier {
       debugPrint('[DEBUG] Error updating profile field $field: $e');
     }
   }
-  
+
   Future<void> updatePassword(String currentPassword, String newPassword) async {
     _isSaving = true;
     _saveError = null;
     notifyListeners();
-    
+
     try {
       final currentUser = Supabase.instance.client.auth.currentUser;
       if (currentUser == null || currentUser.email == null) {
         throw Exception('No user logged in');
       }
-      
+
       await Supabase.instance.client.auth.signInWithPassword(
         email: currentUser.email!,
         password: currentPassword,
       );
-      
+
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(password: newPassword),
       );
-      
+
       _isSaving = false;
       notifyListeners();
     } on AuthException catch (e) {
@@ -408,19 +393,18 @@ class AppStateProvider extends ChangeNotifier {
       rethrow;
     }
   }
-  
+
   Future<void> deleteAccount() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
-    
+
     _isSaving = true;
     notifyListeners();
-    
+
     try {
       await Supabase.instance.client.rpc('delete_account_cascade', params: {
         'uid': userId,
       });
-      
       await signOut();
     } catch (e) {
       _isSaving = false;
@@ -430,8 +414,8 @@ class AppStateProvider extends ChangeNotifier {
       rethrow;
     }
   }
-  
-  // ── Device Status Methods ────────────────────────────────────────────────
+
+  // ── Device Status ────────────────────────────────────────────────────────
   Future<void> checkDeviceStatus() async {
     try {
       await Supabase.instance.client.from('devices').select('id').limit(1);
@@ -439,7 +423,7 @@ class AppStateProvider extends ChangeNotifier {
     } catch (e) {
       _isApiConnected = false;
     }
-    
+
     final deviceId = _deviceId;
     if (deviceId != null) {
       try {
@@ -448,9 +432,9 @@ class AppStateProvider extends ChangeNotifier {
             .select('name, status')
             .eq('id', deviceId)
             .single();
-        
+
         _deviceName = deviceInfo['name'] ?? 'Unknown Device';
-        
+
         final latest = await Supabase.instance.client
             .from('sensor_readings')
             .select('recorded_at')
@@ -458,7 +442,7 @@ class AppStateProvider extends ChangeNotifier {
             .order('recorded_at', ascending: false)
             .limit(1)
             .maybeSingle();
-        
+
         if (latest != null) {
           _deviceLastSeen = DateTime.parse(latest['recorded_at']);
           _isDeviceOnline = DateTime.now().difference(_deviceLastSeen!).inMinutes < 5;
@@ -471,12 +455,11 @@ class AppStateProvider extends ChangeNotifier {
         _deviceName = null;
       }
     }
-    
+
     notifyListeners();
   }
-  
+
   Future<void> refreshDeviceStatus() async {
     await checkDeviceStatus();
   }
 }
-

@@ -1,11 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/app_state_provider.dart';
+import '../services/mqtt_service.dart';
 
 // ─── Safety limit: auto-stop after this duration ──────────────────────────────
 const _kSafetyLimit = Duration(minutes: 2);
@@ -94,9 +93,9 @@ class _PumpControlScreenState extends State<PumpControlScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'GermaniaOne')),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
         content: Text(message,
-            style: const TextStyle(fontFamily: 'GermaniaOne')),
+            style: const TextStyle(fontFamily: 'Poppins')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -113,18 +112,22 @@ class _PumpControlScreenState extends State<PumpControlScreen> {
     return result ?? false;
   }
 
-  // ── Raw HTTP call to backend ──────────────────────────────────────────────
+  // ── MQTT + Supabase fallback ─────────────────────────────────────────────────
   Future<bool> _sendCommand(String deviceId, String command) async {
     try {
-      final url = dotenv.env['PYTHON_BACKEND_URL'] ?? 'http://localhost:8000';
-      final response = await http
-          .post(
-            Uri.parse('$url/api/pump/toggle'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'device_id': deviceId, 'command': command}),
-          )
-          .timeout(const Duration(seconds: 10));
-      return response.statusCode == 200;
+      // Primary path: real-time MQTT publish to HiveMQ.
+      // ESP32 receives this in its mqttCallback within milliseconds.
+      final mqttService = context.read<MqttService>();
+      mqttService.sendPumpCommand(deviceId, command);
+
+      // Fallback path: write to Supabase device_commands table.
+      // ESP32 polls this every 5 seconds in checkDeviceCommands().
+      // Ensures delivery even if MQTT was slow or ESP32 just reconnected.
+      await Supabase.instance.client
+          .from('device_commands')
+          .insert({'device_id': deviceId, 'command': command});
+
+      return true;
     } catch (_) {
       return false;
     }
@@ -217,7 +220,7 @@ class _PumpControlScreenState extends State<PumpControlScreen> {
             Text(
               'Pump Control',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontFamily: 'GermaniaOne',
+                    fontFamily: 'Poppins',
                     fontSize: 28,
                   ),
             ),
@@ -323,7 +326,7 @@ class _OverrideBanner extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
-                    fontFamily: 'GermaniaOne',
+                    fontFamily: 'Poppins',
                     color: Color(0xFF92400E),
                   ),
                 ),
@@ -332,7 +335,7 @@ class _OverrideBanner extends StatelessWidget {
                   'Pump is running manually. Auto-irrigation logic is bypassed.',
                   style: TextStyle(
                     fontSize: 12,
-                    fontFamily: 'GermaniaOne',
+                    fontFamily: 'Poppins',
                     color: const Color(0xFF92400E).withValues(alpha: 0.8),
                   ),
                 ),
@@ -341,7 +344,7 @@ class _OverrideBanner extends StatelessWidget {
                   'Auto-stop in $remLabel',
                   style: const TextStyle(
                     fontSize: 12,
-                    fontFamily: 'GermaniaOne',
+                    fontFamily: 'Poppins',
                     fontWeight: FontWeight.bold,
                     color: Color(0xFFB45309),
                   ),
@@ -405,7 +408,7 @@ class _PumpControlCard extends StatelessWidget {
             'Pump Control',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
-                  fontFamily: 'GermaniaOne',
+                  fontFamily: 'Poppins',
                 ),
           ),
           const SizedBox(height: 4),
@@ -414,7 +417,7 @@ class _PumpControlCard extends StatelessWidget {
             _subtitle,
             style: TextStyle(
               fontSize: 13,
-              fontFamily: 'GermaniaOne',
+              fontFamily: 'Poppins',
               color: isRunning ? colorOn : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
@@ -476,7 +479,7 @@ class _PumpControlCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  fontFamily: 'GermaniaOne',
+                  fontFamily: 'Poppins',
                   color: isRunning ? colorOn : Colors.grey.shade600,
                 ),
               ),
@@ -487,7 +490,7 @@ class _PumpControlCard extends StatelessWidget {
             isRunning ? 'Tap to stop pump' : 'Tap to start pump',
             style: TextStyle(
               fontSize: 12,
-              fontFamily: 'GermaniaOne',
+              fontFamily: 'Poppins',
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
             ),
           ),
@@ -531,12 +534,12 @@ class _StatCard extends StatelessWidget {
             children: [
               Icon(icon, size: 16,
                   color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               Text(
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  fontFamily: 'GermaniaOne',
+                  fontFamily: 'Poppins',
                   color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
                 ),
               ),
@@ -548,7 +551,7 @@ class _StatCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              fontFamily: 'GermaniaOne',
+              fontFamily: 'Poppins',
               color: valueColor ?? Theme.of(context).colorScheme.onSurface,
             ),
           ),

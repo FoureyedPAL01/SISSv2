@@ -52,7 +52,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
         '&units=metric'
         '&appid=$_apiKey',
       );
-      
+
       final forecastUri = Uri.parse(
         'https://api.openweathermap.org/data/2.5/forecast'
         '?lat=$_lat&lon=$_lon'
@@ -90,7 +90,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
     final main = current['main'] as Map<String, dynamic>;
 
     final list = forecastRaw['list'] as List<dynamic>;
-    
+
     final Map<String, List<dynamic>> dailyData = {};
     for (final item in list) {
       final dt = item['dt'] as int;
@@ -110,7 +110,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
       final temps = dayItems.map((i) => ((i['main'] as Map<String, dynamic>)['temp'] as num).toDouble()).toList();
       final pops = dayItems.map((i) => ((i['pop'] as num?) ?? 0) * 100).toList();
       final dayCodes = dayItems.map((i) => ((i['weather'] as List<dynamic>)[0])['id'] as int).toList();
-      
+
       maxTemps.add(temps.reduce((a, b) => a > b ? a : b));
       minTemps.add(temps.reduce((a, b) => a < b ? a : b));
       rainChances.add(pops.reduce((a, b) => a > b ? a : b).toInt());
@@ -159,14 +159,14 @@ class _WeatherScreenState extends State<WeatherScreen> {
   }
 
   PhosphorIconData _weatherIcon(int code, {bool isNight = false}) {
-    if (code == 800) return isNight ? PhosphorIcons.moon() : PhosphorIcons.sun();
-    if (code == 801 || code == 802) return isNight ? PhosphorIcons.cloudMoon() : PhosphorIcons.cloudSun();
-    if (code >= 700) return PhosphorIcons.cloudFog();
-    if (code >= 600) return PhosphorIcons.snowflake();
-    if (code >= 500) return PhosphorIcons.cloudRain();
-    if (code >= 300) return PhosphorIcons.cloudRain();
-    if (code >= 200) return PhosphorIcons.cloudLightning();
-    return PhosphorIcons.cloud();
+    if (code == 800) return isNight ? PhosphorIcons.moon(PhosphorIconsStyle.fill) : PhosphorIcons.sun(PhosphorIconsStyle.fill);
+    if (code == 801 || code == 802) return isNight ? PhosphorIcons.cloudMoon(PhosphorIconsStyle.fill) : PhosphorIcons.cloudSun(PhosphorIconsStyle.fill);
+    if (code >= 700) return PhosphorIcons.cloudFog(PhosphorIconsStyle.fill);
+    if (code >= 600) return PhosphorIcons.snowflake(PhosphorIconsStyle.fill);
+    if (code >= 500) return PhosphorIcons.cloudRain(PhosphorIconsStyle.fill);
+    if (code >= 300) return PhosphorIcons.cloudRain(PhosphorIconsStyle.fill);
+    if (code >= 200) return PhosphorIcons.cloudLightning(PhosphorIconsStyle.fill);
+    return PhosphorIcons.cloud(PhosphorIconsStyle.fill);
   }
 
   bool _isNighttime() {
@@ -176,8 +176,6 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
   String _dayLabel(String isoDate) {
     final d = DateTime.parse(isoDate);
-    final today = DateTime.now();
-    if (d.year == today.year && d.month == today.month && d.day == today.day) return 'TODAY';
     const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
     return days[d.weekday - 1];
   }
@@ -205,7 +203,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
   Widget _buildBody(BuildContext context, String tempUnit) {
     final colors    = Theme.of(context).colorScheme;
-    final appColors = Theme.of(context).extension<AppColors>()!;
+    final appColors = Theme.of(context).extension<AppColors>();
 
     if (_isLoading) return const Center(child: CircularProgressIndicator());
 
@@ -245,7 +243,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
         // ── Title ────────────────────────────────────────────────────────────
         Text('Weather Forecast',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontFamily: 'GermaniaOne', fontSize: 28)),
+              fontFamily: 'Poppins', fontSize: 28)),
         const SizedBox(height: 16),
 
         // ── Current conditions card ──────────────────────────────────────────
@@ -269,7 +267,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
             decoration: BoxDecoration(
               color: colors.secondaryContainer,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colors.secondary),
+              border: Border.all(color: colors.onSecondaryContainer.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -291,7 +289,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
         Text('7-DAY FORECAST',
             style: TextStyle(
               fontSize: 12, fontWeight: FontWeight.bold,
-              letterSpacing: 1.0, fontFamily: 'GermaniaOne',
+              letterSpacing: 1.0, fontFamily: 'Poppins',
               color: colors.onSurface,
             )),
         const SizedBox(height: 12),
@@ -374,7 +372,7 @@ class _CurrentWeatherCard extends StatelessWidget {
               children: [
                 Text(date,
                     style: TextStyle(
-                      fontSize: 13, fontFamily: 'GermaniaOne',
+                      fontSize: 13, fontFamily: 'Poppins',
                       color: colors.onSurfaceVariant,
                     )),
                 const SizedBox(height: 12),
@@ -385,34 +383,26 @@ class _CurrentWeatherCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
-                            children: [
-                              Text(tempLabel,
-                                  style: TextStyle(
-                                    fontSize: 52, fontWeight: FontWeight.bold,
-                                    fontFamily: 'GermaniaOne',
-                                    color: colors.onSurface,
-                                  )),
-                              const SizedBox(width: 8),
-                              Text('/ $minLabel',
-                                  style: TextStyle(
-                                    fontSize: 22, fontFamily: 'GermaniaOne',
-                                    color: colors.onSurfaceVariant,
-                                  )),
-                            ],
-                          ),
+                          Text(tempLabel,
+                              style: TextStyle(
+                                fontSize: 42, fontWeight: FontWeight.bold,
+                                fontFamily: 'Poppins', color: colors.onSurface,
+                              )),
+                          Text('$minLabel',
+                              style: TextStyle(
+                                fontSize: 16, fontFamily: 'Poppins',
+                                color: colors.onSurfaceVariant,
+                              )),
                           const SizedBox(height: 4),
                           Text(condition,
                               style: TextStyle(
-                                fontSize: 15, fontFamily: 'GermaniaOne',
+                                fontSize: 14, fontFamily: 'Poppins',
                                 color: colors.onSurfaceVariant,
                               )),
                         ],
                       ),
                     ),
-                    Icon(icon, size: 72,
+                    Icon(icon, size: 56,
                         color: colors.primary.withValues(alpha: 0.7)),
                   ],
                 ),
@@ -472,11 +462,11 @@ class _ForecastDayCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
       decoration: BoxDecoration(
-        color: isToday ? colors.primary.withValues(alpha: 0.12) : colors.surface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isToday ? colors.primary : colors.outline.withValues(alpha: 0.25),
-          width: isToday ? 1.5 : 1,
+          color: colors.outline.withValues(alpha: 0.25),
+          width: 1,
         ),
       ),
       child: Column(
@@ -485,7 +475,7 @@ class _ForecastDayCard extends StatelessWidget {
           Text(dayLabel,
               style: TextStyle(
                 fontSize: 11, fontWeight: FontWeight.bold,
-                fontFamily: 'GermaniaOne', letterSpacing: 0.5,
+                fontFamily: 'Poppins', letterSpacing: 0.5,
                 color: isToday ? colors.primary : colors.onSurfaceVariant,
               )),
           const SizedBox(height: 8),
@@ -495,11 +485,12 @@ class _ForecastDayCard extends StatelessWidget {
           Text(maxTemp,
               style: TextStyle(
                 fontSize: 15, fontWeight: FontWeight.bold,
-                fontFamily: 'GermaniaOne', color: colors.onSurface,
+                fontFamily: 'Poppins',
+                color: colors.onSurface,
               )),
           Text(minTemp,
               style: TextStyle(
-                fontSize: 12, fontFamily: 'GermaniaOne',
+                fontSize: 12, fontFamily: 'Poppins',
                 color: colors.onSurfaceVariant,
               )),
         ],
@@ -539,7 +530,7 @@ class _TempBarChart extends StatelessWidget {
             Text('Temperature (next 24h)',
                 style: TextStyle(
                   fontWeight: FontWeight.bold, fontSize: 13,
-                  fontFamily: 'GermaniaOne', color: colors.onSurface,
+                  fontFamily: 'Poppins', color: colors.onSurface,
                 )),
           ]),
           const SizedBox(height: 16),
@@ -552,7 +543,7 @@ class _TempBarChart extends StatelessWidget {
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipItems: (spots) => spots.map((spot) => LineTooltipItem(
                       '${spot.y.toStringAsFixed(1)}°',
-                      const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'GermaniaOne'),
+                      const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'Poppins'),
                     )).toList(),
                   ),
                 ),
@@ -562,7 +553,7 @@ class _TempBarChart extends StatelessWidget {
                       showTitles: true, reservedSize: 32,
                       getTitlesWidget: (v, _) => Text(
                         '${v.toInt()}°',
-                        style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant, fontFamily: 'GermaniaOne'),
+                        style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant, fontFamily: 'Poppins'),
                       ),
                     ),
                   ),
@@ -574,7 +565,7 @@ class _TempBarChart extends StatelessWidget {
                         if (i % 4 != 0 || i >= times.length) return const SizedBox.shrink();
                         return Text(
                           _hourLabel(times[i]),
-                          style: TextStyle(fontSize: 9, color: colors.onSurfaceVariant, fontFamily: 'GermaniaOne'),
+                          style: TextStyle(fontSize: 9, color: colors.onSurfaceVariant, fontFamily: 'Poppins'),
                         );
                       },
                     ),
@@ -641,7 +632,7 @@ class _RainBarChart extends StatelessWidget {
             Text('Rain Probability (next 24h)',
                 style: TextStyle(
                   fontWeight: FontWeight.bold, fontSize: 13,
-                  fontFamily: 'GermaniaOne', color: colors.onSurface,
+                  fontFamily: 'Poppins', color: colors.onSurface,
                 )),
           ]),
           const SizedBox(height: 16),
@@ -654,7 +645,7 @@ class _RainBarChart extends StatelessWidget {
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipItems: (spots) => spots.map((spot) => LineTooltipItem(
                       '${spot.y.toInt()}%',
-                      const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'GermaniaOne'),
+                      const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'Poppins'),
                     )).toList(),
                   ),
                 ),
@@ -665,7 +656,7 @@ class _RainBarChart extends StatelessWidget {
                       interval: 25,
                       getTitlesWidget: (v, _) => Text(
                         '${v.toInt()}%',
-                        style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant, fontFamily: 'GermaniaOne'),
+                        style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant, fontFamily: 'Poppins'),
                       ),
                     ),
                   ),
@@ -677,7 +668,7 @@ class _RainBarChart extends StatelessWidget {
                         if (i % 4 != 0 || i >= times.length) return const SizedBox.shrink();
                         return Text(
                           _hourLabel(times[i]),
-                          style: TextStyle(fontSize: 9, color: colors.onSurfaceVariant, fontFamily: 'GermaniaOne'),
+                          style: TextStyle(fontSize: 9, color: colors.onSurfaceVariant, fontFamily: 'Poppins'),
                         );
                       },
                     ),
@@ -733,8 +724,8 @@ class _StatChip extends StatelessWidget {
       children: [
         Icon(icon, size: 20, color: colors.onSurfaceVariant),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'GermaniaOne')),
-        Text(label, style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant, fontFamily: 'GermaniaOne')),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
+        Text(label, style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant, fontFamily: 'Poppins')),
       ],
     );
   }

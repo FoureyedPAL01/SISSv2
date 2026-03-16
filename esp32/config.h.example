@@ -1,0 +1,48 @@
+// config.h.example
+// SISS v2 -- Serverless Edition
+// Copy this file to config.h and fill in your credentials before flashing.
+// Do not commit config.h to Git (it's already in .gitignore).
+
+#pragma once
+
+// -- WiFi ------------------------------------------------------------------
+#define WIFI_SSID         "YOUR_WIFI_SSID"
+#define WIFI_PASSWORD     "YOUR_WIFI_PASSWORD"
+
+// -- Supabase --------------------------------------------------------------
+// Project URL: Settings -> API -> Project URL
+#define SUPABASE_URL      "https://your-project.supabase.co"
+// Anon key: Settings -> API -> anon public
+#define SUPABASE_ANON_KEY "YOUR_SUPABASE_ANON_KEY"
+
+// -- Device Identity -------------------------------------------------------
+// UUID from the devices table row created in Supabase.
+// This is the hardware's permanent identity -- never changes.
+#define DEVICE_ID         "YOUR_DEVICE_UUID"
+
+// -- HiveMQ Cloud ----------------------------------------------------------
+#define MQTT_HOST         "your-broker.xx.hivemq.cloud"
+#define MQTT_PORT         8883
+#define MQTT_USER         "YOUR_MQTT_USERNAME"
+#define MQTT_PASSWORD     "YOUR_MQTT_PASSWORD"
+#define MQTT_TOPIC_SUB    "devices/" DEVICE_ID "/control"
+#define MQTT_TOPIC_PUB    "devices/" DEVICE_ID "/status"
+
+// -- Open-Meteo location ---------------------------------------------------
+// GPS coordinates of the location where the plant is
+#define LOCATION_LAT      "YOUR_LATITUDE"
+#define LOCATION_LON      "YOUR_LONGITUDE"
+
+// -- Sensor pins -----------------------------------------------------------
+#define PIN_SOIL_MOISTURE  34  // Analog input (ADC)
+#define PIN_DHT            4   // DHT11 data pin
+#define PIN_RAIN_SENSOR    35  // Digital input
+#define PIN_FLOW_SENSOR    18  // Interrupt input (YF-S201)
+#define PIN_PUMP_RELAY     26  // Digital output to relay module
+
+// -- Default thresholds ----------------------------------------------------
+// Used if no crop profile is found in Supabase on boot
+#define DEFAULT_MOISTURE_LOW  30  // start watering when moisture% falls below this
+#define DEFAULT_MOISTURE_HIGH 70  // stop watering when moisture% rises above this
+#define DEFAULT_IRRIGATE_SECS 60  // seconds to run the pump per cycle
+#define DEFAULT_RAIN_SKIP_PCT 60  // skip irrigation if rain probability exceeds this

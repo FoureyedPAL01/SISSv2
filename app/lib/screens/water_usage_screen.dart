@@ -281,7 +281,7 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
         Text(
           'Water Usage',
           style: textTheme.headlineMedium?.copyWith(
-            fontFamily: 'GermaniaOne', fontSize: 24,
+            fontFamily: 'Poppins', fontSize: 24,
           ),
         ),
         const SizedBox(height: 4),
@@ -865,22 +865,22 @@ class _StatCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: iconColor, size: 22),
-        const SizedBox(height: 10),
+        Icon(icon, color: iconColor, size: 20),
+        const SizedBox(height: 6),
         Text(
           value,
           style: TextStyle(
             color:      colors.onSurface,
-            fontSize:   20,
+            fontSize:   16,
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 2),
         Text(
           label,
           style: TextStyle(
             color:    colors.onSurface.withValues(alpha: 0.5),
-            fontSize: 12,
+            fontSize: 10,
           ),
         ),
       ],

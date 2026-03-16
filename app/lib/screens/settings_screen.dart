@@ -221,7 +221,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Text(
               "Settings",
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontFamily: 'GermaniaOne',
+                fontFamily: 'Poppins',
                 fontSize: 24,
                 color: settingsColor,
               ),
