@@ -5,7 +5,6 @@
 // Previous owner loses access. All historical data becomes visible to new owner.
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/app_state_provider.dart';
@@ -69,13 +68,13 @@ class _LinkDeviceScreenState extends State<LinkDeviceScreen> {
       await context.read<AppStateProvider>().refresh();
 
     } on PostgrestException catch (e) {
-      print('[DEBUG] Full error: $e');
+      debugPrint('[DEBUG] Full error: $e');
       setState(() {
         _error = 'Failed to link device: ${e.message}';
         _isLoading = false;
       });
     } catch (e) {
-      print('[DEBUG] Full error: $e');
+      debugPrint('[DEBUG] Full error: $e');
       setState(() {
         _error = e.toString();
         _isLoading = false;

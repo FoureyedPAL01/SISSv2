@@ -25,9 +25,24 @@ class AppStateProvider extends ChangeNotifier {
   bool _isApiConnected = false;
   DateTime? _deviceLastSeen;
   String? _deviceName;
+  double? _deviceLatitude;
+  double? _deviceLongitude;
+
+  // Pump state
+  bool _isPumpRunning = false;
+  DateTime? _lastStatusCheck;
 
   bool get isLoading => _isLoading;
   String? get deviceId => _deviceId;
+  double? get deviceLatitude => _deviceLatitude;
+  double? get deviceLongitude => _deviceLongitude;
+  bool get isPumpRunning => _isPumpRunning;
+
+  void setPumpRunning(bool value) {
+    _isPumpRunning = value;
+    notifyListeners();
+  }
+
   Map<String, dynamic> get latestSensorData => _latestSensorData;
   List<Map<String, dynamic>> get sensorHistory => _sensorHistory;
 
@@ -81,10 +96,14 @@ class AppStateProvider extends ChangeNotifier {
         _sensorHistory = [];
         _userProfile = null;
         _activeCropProfile = null;
+        _weeklyWaterUsage = [];
+        _isPumpRunning = false;
         _isDeviceOnline = false;
         _isApiConnected = false;
         _deviceLastSeen = null;
         _deviceName = null;
+        _deviceLatitude = null;
+        _deviceLongitude = null;
         _isLoading = false;
         notifyListeners();
       }
@@ -115,11 +134,19 @@ class AppStateProvider extends ChangeNotifier {
 
     final session = Supabase.instance.client.auth.currentSession;
     if (session != null) {
-      await fetchUserProfile();
-      await _fetchUserDevices(session.user.id);
-      await checkDeviceStatus();
-      await _fetchActiveCropProfile();
-      await fetchWeeklyWaterUsage();
+      // First batch: can run in parallel
+      await Future.wait([
+        fetchUserProfile(),
+        _fetchUserDevices(session.user.id),
+      ]);
+
+      // Second batch: all depend on deviceId, can run in parallel
+      await Future.wait([
+        checkPumpStatus(),
+        checkDeviceStatus(),
+        _fetchActiveCropProfile(),
+        fetchWeeklyWaterUsage(),
+      ]);
     }
 
     _isLoading = false;
@@ -139,7 +166,9 @@ class AppStateProvider extends ChangeNotifier {
 
       if (response.isNotEmpty) {
         _deviceId = response[0]['id'];
-        debugPrint('[DEBUG] Device found: $_deviceId');
+        _deviceLatitude = (response[0]['latitude'] as num?)?.toDouble();
+        _deviceLongitude = (response[0]['longitude'] as num?)?.toDouble();
+        debugPrint('[DEBUG] Device found: $_deviceId, lat: $_deviceLatitude, lon: $_deviceLongitude');
         await _subscribeToSensorData();
       } else {
         debugPrint('[DEBUG] No device linked to this user');
@@ -281,6 +310,33 @@ class AppStateProvider extends ChangeNotifier {
     }
   }
 
+  // Check if pump is currently running from the latest pump log
+  Future<void> checkPumpStatus() async {
+    if (_deviceId == null) return;
+
+    try {
+      final response = await Supabase.instance.client
+          .from('pump_logs')
+          .select('pump_on_at, pump_off_at')
+          .eq('device_id', _deviceId!)
+          .order('pump_on_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (response != null) {
+        final pumpOffAt = response['pump_off_at'] as String?;
+        // If pump_off_at is null, the pump is still running
+        final isRunning = pumpOffAt == null;
+        if (_isPumpRunning != isRunning) {
+          _isPumpRunning = isRunning;
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint('[DEBUG] Error checking pump status: $e');
+    }
+  }
+
   // ── User Profile ─────────────────────────────────────────────────────────
   // FIX: users table primary key is 'id', not 'user_id'
   Future<void> fetchUserProfile() async {
@@ -417,6 +473,13 @@ class AppStateProvider extends ChangeNotifier {
 
   // ── Device Status ────────────────────────────────────────────────────────
   Future<void> checkDeviceStatus() async {
+    // Cooldown: don't check more than once every 30 seconds
+    if (_lastStatusCheck != null &&
+        DateTime.now().difference(_lastStatusCheck!).inSeconds < 30) {
+      return;
+    }
+    _lastStatusCheck = DateTime.now();
+
     try {
       await Supabase.instance.client.from('devices').select('id').limit(1);
       _isApiConnected = true;

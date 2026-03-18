@@ -40,8 +40,6 @@ dependencies:
   go_router: ^17.1.0
   phosphor_flutter: ^2.1.0
   flutter_dotenv: ^6.0.0
-  google_fonts: ^8.0.2
-  flutter_timezone: ^3.0.1
 
 dev_dependencies:
   flutter_test:

@@ -88,15 +88,15 @@ GoRouter createRouter(AppStateProvider appState) => GoRouter(
       navigatorKey: _shellNavigatorKey,
       builder: (context, state, child) => AppLayoutScaffold(child: child),
       routes: [
-        GoRoute(path: '/',            builder: (_, __) => const DashboardScreen()),
-        GoRoute(path: '/irrigation',  builder: (_, __) => const IrrigationScreen()),
-        GoRoute(path: '/weather',     builder: (_, __) => const WeatherScreen()),
-        GoRoute(path: '/pump',        builder: (_, __) => const PumpControlScreen()),
-        GoRoute(path: '/crops',       builder: (_, __) => const CropProfilesScreen()),
-        GoRoute(path: '/water',       builder: (_, __) => const WaterUsageScreen()),
-        GoRoute(path: '/fertigation', builder: (_, __) => const FertigationScreen()),
-        GoRoute(path: '/alerts',      builder: (_, __) => const AlertsScreen()),
-        GoRoute(path: '/settings',    builder: (_, __) => const SettingsScreen()),
+        GoRoute(path: '/',            builder: (context, state) => const DashboardScreen()),
+        GoRoute(path: '/irrigation',  builder: (context, state) => const IrrigationScreen()),
+        GoRoute(path: '/weather',     builder: (context, state) => const WeatherScreen()),
+        GoRoute(path: '/pump',        builder: (context, state) => const PumpControlScreen()),
+        GoRoute(path: '/crops',       builder: (context, state) => const CropProfilesScreen()),
+        GoRoute(path: '/water',       builder: (context, state) => const WaterUsageScreen()),
+        GoRoute(path: '/fertigation', builder: (context, state) => const FertigationScreen()),
+        GoRoute(path: '/alerts',      builder: (context, state) => const AlertsScreen()),
+        GoRoute(path: '/settings',    builder: (context, state) => const SettingsScreen()),
       ],
     ),
   ],
@@ -146,9 +146,9 @@ class AppLayoutScaffold extends StatelessWidget {
           ),
         ),
         actions: [
-          Consumer<AppStateProvider>(
-            builder: (context, provider, _) {
-              final username = provider.username;
+          Builder(
+            builder: (context) {
+              final username = context.select<AppStateProvider, String>((p) => p.username);
               if (username.isEmpty) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(right: 4),
@@ -205,9 +205,9 @@ class AppLayoutScaffold extends StatelessWidget {
                     color: colors.primary,
                     fontWeight: FontWeight.bold)),
           ),
-          Consumer<AppStateProvider>(
-            builder: (context, provider, _) {
-              final username = provider.username;
+          Builder(
+            builder: (context) {
+              final username = context.select<AppStateProvider, String>((p) => p.username);
               if (username.isEmpty) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.fromLTRB(28, 16, 16, 8),

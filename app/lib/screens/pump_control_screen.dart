@@ -55,6 +55,7 @@ class _PumpControlScreenState extends State<PumpControlScreen> {
       }
       if (mounted) {
         setState(() => _isRunning = false);
+        context.read<AppStateProvider>().setPumpRunning(false);
         _stopTimers();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -137,6 +138,8 @@ class _PumpControlScreenState extends State<PumpControlScreen> {
   Future<void> _onButtonPressed(String deviceId) async {
     if (_isChanging) return;
 
+    final appState = context.read<AppStateProvider>();
+
     if (!_isRunning) {
       // ── Start flow ────────────────────────────────────────────────────────
       final confirmed = await _showConfirmDialog(
@@ -159,6 +162,7 @@ class _PumpControlScreenState extends State<PumpControlScreen> {
           _isRunning = true;
           _isChanging = false;
         });
+        appState.setPumpRunning(true);
         _startTimers();
       } else {
         setState(() => _isChanging = false);
@@ -190,6 +194,7 @@ class _PumpControlScreenState extends State<PumpControlScreen> {
         _elapsed = Duration.zero;
         _sessionStart = null;
       });
+      context.read<AppStateProvider>().setPumpRunning(false);
 
       if (!ok) {
         ScaffoldMessenger.of(context).showSnackBar(

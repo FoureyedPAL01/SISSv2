@@ -130,6 +130,8 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
 
   // ── Delete a profile (with confirm dialog) ────────────────────────────────
   Future<void> _delete(_Profile profile) async {
+    final provider = context.read<AppStateProvider>();
+    
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -154,20 +156,19 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
     );
     if (confirmed != true) return;
 
+    final deviceIdToCheck = provider.deviceId;
+
     await Supabase.instance.client
         .from('crop_profiles')
         .delete()
         .eq('id', profile.id);
 
     // If the deleted profile was active, clear the device FK
-    if (_activeId == profile.id) {
-      final deviceId = context.read<AppStateProvider>().deviceId;
-      if (deviceId != null) {
-        await Supabase.instance.client
-            .from('devices')
-            .update({'crop_profile_id': null})
-            .eq('id', deviceId);
-      }
+    if (_activeId == profile.id && deviceIdToCheck != null) {
+      await Supabase.instance.client
+          .from('devices')
+          .update({'crop_profile_id': null})
+          .eq('id', deviceIdToCheck);
     }
 
     await _load();

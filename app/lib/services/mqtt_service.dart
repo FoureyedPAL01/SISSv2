@@ -9,6 +9,7 @@ import 'package:mqtt_client/mqtt_server_client.dart';
 
 class MqttService {
   MqttServerClient? _client;
+  bool _disposed = false;
 
   bool get isConnected =>
       _client?.connectionStatus?.state == MqttConnectionState.connected;
@@ -64,8 +65,14 @@ class MqttService {
   }
 
   void _onDisconnected() {
+    if (_disposed) return;
     Future.delayed(const Duration(seconds: 3), connect);
   }
 
   void disconnect() => _client?.disconnect();
+
+  void dispose() {
+    _disposed = true;
+    _client?.disconnect();
+  }
 }

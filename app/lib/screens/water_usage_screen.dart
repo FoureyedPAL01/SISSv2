@@ -559,8 +559,8 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
                 // Tooltip shown when user taps a bar
                 barTouchData: BarTouchData(
                   touchTooltipData: BarTouchTooltipData(
-                    getTooltipColor: (_) => colors.surface,
-                    getTooltipItem: (group, _, rod, __) => BarTooltipItem(
+                    getTooltipColor: (group) => colors.surface,
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
                       '${rod.toY.toInt()} min',
                       TextStyle(
                         color:      colors.onSurface,

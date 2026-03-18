@@ -39,6 +39,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   static const Color _cHumid = Color(0xFF7C6FCD);
   static const Color _cFlow = Color(0xFF00B4C4);
 
+  // Chart cache - only rebuild when sensorHistory changes
+  List<_ChartPoint> _cachedMoistHist = [];
+  List<_ChartPoint> _cachedTempHist = [];
+  List<_ChartPoint> _cachedHumidHist = [];
+  List<Map<String, dynamic>>? _lastHistory;
+
+  void _updateChartCache(List<Map<String, dynamic>> history) {
+    if (identical(history, _lastHistory)) return;
+    _lastHistory = history;
+    _cachedMoistHist = _buildChartFromHistory(history, 'soil_moisture');
+    _cachedTempHist = _buildChartFromHistory(history, 'temperature_c');
+    _cachedHumidHist = _buildChartFromHistory(history, 'humidity');
+  }
+
   List<_ChartPoint> _buildChartFromHistory(
     List<Map<String, dynamic>> history,
     String field,
@@ -97,22 +111,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         final isRaining = d['rain_detected'] == true;
 
-        // TODO: pull pumpRunning from state.pumpStatus when available
-        const pumpRunning = false;
+        final pumpRunning = state.isPumpRunning;
 
-        // ── Chart history ────────────────────────────────────────────────
-        final moistHist = _buildChartFromHistory(
-          state.sensorHistory,
-          'soil_moisture',
-        );
-        final tempHist = _buildChartFromHistory(
-          state.sensorHistory,
-          'temperature_c',
-        );
-        final humidHist = _buildChartFromHistory(
-          state.sensorHistory,
-          'humidity',
-        );
+        // ── Chart history (cached, only rebuild when history changes) ───────
+        _updateChartCache(state.sensorHistory);
+        final moistHist = _cachedMoistHist;
+        final tempHist = _cachedTempHist;
+        final humidHist = _cachedHumidHist;
 
         return Scaffold(
           backgroundColor: bg,
@@ -238,13 +243,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }) {
     // Split "82.4°F" → value="82.4", unit="°F"
     // If no tempDisplay, fall back to raw °C
-    final _tempValue = tempDisplay != null
-        ? RegExp(r'^([\d.]+)(°[CF])$').firstMatch(tempDisplay!)?.group(1)
-            ?? tempDisplay!
+    final tempValue = tempDisplay != null
+        ? RegExp(r'^([\d.]+)(°[CF])$').firstMatch(tempDisplay)?.group(1)
+            ?? tempC.toStringAsFixed(1)
         : tempC.toStringAsFixed(1);
 
-    final _tempUnit = tempDisplay != null
-        ? RegExp(r'^([\d.]+)(°[CF])$').firstMatch(tempDisplay!)?.group(2)
+    final tempUnit = tempDisplay != null
+        ? RegExp(r'^([\d.]+)(°[CF])$').firstMatch(tempDisplay)?.group(2)
             ?? ''
         : '°C';
     final cards = <_SensorCard>[
@@ -268,8 +273,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         muted: muted,
         label: 'TEMPERATURE',
         numericValue: tempC,
-        displayValue: _tempValue,
-        unit: _tempUnit,
+        displayValue: tempValue,
+        unit: tempUnit,
         accentColor: _cTemp,
         icon: PhosphorIcons.thermometer(),
         gaugeMax: 50,
@@ -1082,7 +1087,6 @@ class _SensorCard extends StatelessWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Track (full circle, background color)
                     SizedBox.expand(
                       child: CircularProgressIndicator(
                         value: 1.0,
@@ -1091,7 +1095,6 @@ class _SensorCard extends StatelessWidget {
                         strokeCap: StrokeCap.round,
                       ),
                     ),
-                    // Progress arc (accent color)
                     SizedBox.expand(
                       child: CircularProgressIndicator(
                         value: animatedProgress,
@@ -1101,7 +1104,6 @@ class _SensorCard extends StatelessWidget {
                         strokeCap: StrokeCap.round,
                       ),
                     ),
-                    // Value text in center
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [

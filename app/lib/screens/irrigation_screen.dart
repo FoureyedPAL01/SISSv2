@@ -30,6 +30,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
 
   void _fetchHistory() {
     final state = context.read<AppStateProvider>();
+    final sensorHistory = state.sensorHistory;
     final deviceId = state.deviceId;
 
     if (deviceId == null) {
@@ -42,7 +43,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
       final now = DateTime.now();
       final spots = <FlSpot>[];
 
-      for (final row in state.sensorHistory) {
+      for (final row in sensorHistory) {
         final String recordedAtStr = row['recorded_at'] ?? now.toIso8601String();
         final createdAt = DateTime.parse(recordedAtStr);
         final num moistureNum = row['soil_moisture'] ?? 0.0;
@@ -70,12 +71,15 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch for sensorHistory changes to auto-update chart
+    final state = context.watch<AppStateProvider>();
+
     return Scaffold(
       body: RefreshIndicator(
         // Pull-to-refresh re-runs the fetch
         onRefresh: () async {
           setState(() { _isLoading = true; _error = null; });
-          await context.read<AppStateProvider>().refresh();
+          await state.refresh();
           if (mounted) _fetchHistory();
         },
         child: ListView(

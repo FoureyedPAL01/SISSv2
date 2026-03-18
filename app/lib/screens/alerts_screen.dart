@@ -104,7 +104,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
     // Stream all alerts for this device, newest first, no hard limit.
     // Client-side filtering is applied in build() so switching tabs is instant.
     _stream = Supabase.instance.client
-        .from('system_alerts')
+        .from('alerts')
         .stream(primaryKey: ['id'])
         .order('created_at', ascending: false);
   }
@@ -113,7 +113,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
   // Called when the user taps a card.
   Future<void> _markAsRead(int alertId) async {
     await Supabase.instance.client
-        .from('system_alerts')
+        .from('alerts')
         .update({'is_read': true})
         .eq('id', alertId);
     // The stream will emit the updated row automatically.
@@ -149,7 +149,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
     if (confirmed == true) {
       await Supabase.instance.client
-          .from('system_alerts')
+          .from('alerts')
           .delete()
           .eq('device_id', deviceId);
     }
