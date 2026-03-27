@@ -43,3 +43,16 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local verification artifacts
+/analyze*.txt
+/final_analyze.txt
+/build_log.txt
+
+# Firebase config
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
+
+# Signing files
+android/key.properties
+android/app/*.jks

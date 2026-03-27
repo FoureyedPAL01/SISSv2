@@ -1,341 +1,891 @@
-// Fresh Greens Theme
-// ignore_for_file: deprecated_member_use
+// The Botanical Atelier Theme
+// Design System: "The Living Editorial"
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // Palette constants
-  static const Color mist = Color(0xFFD8F3DC);
-  static const Color paleMint = Color(0xFFB7E4C7);
-  static const Color softMint = Color(0xFF95D5B2);
-  static const Color lightLeaf = Color(0xFF74C69D);
-  static const Color freshLeaf = Color(0xFF52B788);
-  static const Color teal = Color(0xFF40916C);
-  static const Color deepLeaf = Color(0xFF2D6A4F);
-  static const Color pine = Color(0xFF1B4332);
-  static const Color night = Color(0xFF081C15);
-  static const Color accentRed = Color(0xFF9B2226);
+  // ─────────────────────────────────────────────────────────────────────────────
+  // BOTANICAL ATELIER COLOR PALETTE
+  // ─────────────────────────────────────────────────────────────────────────────
 
-  static ThemeData get theme {
-    final colorScheme = const ColorScheme.light(
-      primary: teal,
-      onPrimary: Colors.white,
-      secondary: freshLeaf,
-      onSecondary: night,
-      surface: mist,          // swapped: cards/charts now use former screen bg
-      onSurface: night,
-      background: paleMint,   // swapped: screen bg now paleMint
-      onBackground: night,
-      error: accentRed,
-      onError: Colors.white,
-      outline: softMint,
-      surfaceTint: Colors.transparent,
+  // Primary: Deep chlorophyll greens
+  static const Color primary = Color(0xFF16351C);       // Deep forest green
+  static const Color primaryContainer = Color(0xFF2D4C31); // Lighter green
+  static const Color onPrimary = Color(0xFFFFFFFF);
+  static const Color onPrimaryContainer = Color(0xFFD4E8D0);
+
+  // Secondary: Earthy accents
+  static const Color secondary = Color(0xFF4A5D23);    // Olive
+  static const Color secondaryContainer = Color(0xFF6B8240);
+  static const Color onSecondary = Color(0xFFFFFFFF);
+  static const Color onSecondaryContainer = Color(0xFFE8F0D8);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // BACKWARDS COMPATIBILITY (legacy names for existing screens)
+  // ─────────────────────────────────────────────────────────────────────────────
+  // These map old names to new botanical palette
+  static const Color teal = primary;         // Was #40916C → now #16351C
+  static const Color deepLeaf = primaryContainer; // Was #2D6A4F → now #2D4C31
+  static const Color pine = primaryContainer;
+  static const Color night = onSurface;    // Was #081C15 → now #1B1C1A
+  static const Color freshLeaf = secondary;      // Was #52B788 → now #4A5D23
+  static const Color softMint = Color(0xFF95D5B2);
+  static const Color paleMint = surfaceContainerLow;
+  static const Color mist = surfaceContainerLow;
+  static const Color lightLeaf = Color(0xFF74C69D);
+  static const Color accentRed = error;
+
+  // Tertiary: Warm botanical
+  static const Color tertiary = Color(0xFF3D6B54);      // Sage
+  static const Color tertiaryContainer = Color(0xFF5A9178);
+  static const Color onTertiary = Color(0xFFFFFFFF);
+  static const Color onTertiaryContainer = Color(0xFFD0E8DC);
+
+  // Error
+  static const Color error = Color(0xFFBA1A1A);
+  static const Color onError = Color(0xFFFFFFFF);
+  static const Color errorContainer = Color(0xFFFFDAD6);
+  static const Color onErrorContainer = Color(0xFF410002);
+
+  // Surface hierarchy (The "No-Line" Rule - no borders, only color shifts)
+  static const Color surface = Color(0xFFFBF9F5);         // Base - warm paper white
+  static const Color surfaceBright = Color(0xFFF8F5F0);    // Slightly brighter
+  static const Color surfaceContainerLowest = Color(0xFFFFFFFF); // Cards - max pop
+  static const Color surfaceContainerLow = Color(0xFFF5F3F0);     // Sections
+  static const Color surfaceContainer = Color(0xFFEFEEEA);         // Elevated
+  static const Color surfaceContainerHigh = Color(0xFFE9E8E3);      // High elevation
+  static const Color surfaceContainerHighest = Color(0xFFE3E2DD);
+
+  // On-surface (warm charcoal instead of pure black)
+  static const Color onSurface = Color(0xFF1B1C1A);
+  static const Color onSurfaceVariant = Color(0xFF464743);
+  static const Color outline = Color(0xFF767671);
+  static const Color outlineVariant = Color(0xFFC6C5C0); // Ghost border (15%)
+
+  // Background
+  static const Color background = Color(0xFFFBF9F5);
+  static const Color onBackground = Color(0xFF1B1C1A);
+
+  // Inverse
+  static const Color inverseSurface = Color(0xFF30302E);
+  static const Color inverseOnSurface = Color(0xFFF1F0EB);
+  static const Color inversePrimary = Color(0xFF8CD189);
+
+  // Scrim
+  static const Color scrim = Color(0xFF000000);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // SHADOWS (Ambient - minimal, tinted)
+  // ─────────────────────────────────────────────────────────────────────────────
+  static List<BoxShadow> ambientShadow(Color color) => [
+    BoxShadow(
+      color: color.withValues(alpha: 0.06),
+      blurRadius: 30,
+      offset: const Offset(0, 8),
+    ),
+  ];
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // LIGHT THEME
+  // ─────────────────────────────────────────────────────────────────────────────
+  static ThemeData get lightTheme {
+    final colorScheme = ColorScheme(
+      brightness: Brightness.light,
+      primary: primary,
+      onPrimary: onPrimary,
+      primaryContainer: primaryContainer,
+      onPrimaryContainer: onPrimaryContainer,
+      secondary: secondary,
+      onSecondary: onSecondary,
+      secondaryContainer: secondaryContainer,
+      onSecondaryContainer: onSecondaryContainer,
+      tertiary: tertiary,
+      onTertiary: onTertiary,
+      tertiaryContainer: tertiaryContainer,
+      onTertiaryContainer: onTertiaryContainer,
+      error: error,
+      onError: onError,
+      errorContainer: errorContainer,
+      onErrorContainer: onErrorContainer,
+      surface: surface,
+      onSurface: onSurface,
+      onSurfaceVariant: onSurfaceVariant,
+      outline: outline,
+      outlineVariant: outlineVariant,
+      scrim: scrim,
+      inverseSurface: inverseSurface,
+      onInverseSurface: inverseOnSurface,
+      inversePrimary: inversePrimary,
+      surfaceContainerLowest: surfaceContainerLowest,
+      surfaceContainerLow: surfaceContainerLow,
+      surfaceContainer: surfaceContainer,
+      surfaceContainerHigh: surfaceContainerHigh,
+      surfaceContainerHighest: surfaceContainerHighest,
     );
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      fontFamily: 'Poppins',
-      primaryColor: teal,
-      scaffoldBackgroundColor: paleMint,
       colorScheme: colorScheme,
-      iconTheme: const IconThemeData(color: pine, size: 24),
+      scaffoldBackgroundColor: background,
 
-      appBarTheme: const AppBarTheme(
-        backgroundColor: paleMint,
-        foregroundColor: night,
+      // Typography: Manrope (all text)
+      fontFamily: 'Manrope',
+      textTheme: _buildTextTheme(Brightness.light),
+
+      // App Bar - No-line, use surface color
+      appBarTheme: AppBarTheme(
+        backgroundColor: surface,
+        foregroundColor: onSurface,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
-        iconTheme: IconThemeData(color: night),
-        actionsIconTheme: IconThemeData(color: night),
-        titleTextStyle: TextStyle(
-          color: night,
+        titleTextStyle: const TextStyle(
+          fontFamily: 'Manrope',
           fontSize: 20,
           fontWeight: FontWeight.bold,
-          fontFamily: 'Poppins',
+          color: onSurface,
+          letterSpacing: -0.5,
         ),
+        iconTheme: const IconThemeData(color: onSurface),
       ),
 
-      drawerTheme: const DrawerThemeData(
-        backgroundColor: mist,
-      ),
-      navigationDrawerTheme: NavigationDrawerThemeData(
-        backgroundColor: mist,
-        surfaceTintColor: Colors.transparent,
-        indicatorColor: deepLeaf,
-        iconTheme: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: Colors.white);
-          }
-          return const IconThemeData(color: pine);
-        }),
-        labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            );
-          }
-          return const TextStyle(
-            color: night,
-            fontWeight: FontWeight.bold,
-          );
-        }),
-      ),
-
-      bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: paleMint,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: night,
-        type: BottomNavigationBarType.fixed,
-        elevation: 0,
-      ),
-
+      // Bottom Navigation - Surface container with glassmorphism feel
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: paleMint,
+        backgroundColor: surface,
         elevation: 0,
-        indicatorColor: deepLeaf,
-        iconTheme: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: Colors.white);
-          }
-          return const IconThemeData(color: night);
-        }),
+        indicatorColor: primaryContainer,
+        surfaceTintColor: Colors.transparent,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
+              fontFamily: 'Manrope',
               fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: onPrimaryContainer,
             );
           }
-          return const TextStyle(
-            color: night,
-            fontWeight: FontWeight.bold,
+          return TextStyle(
+            fontFamily: 'Manrope',
             fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: onSurfaceVariant,
           );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: onPrimaryContainer);
+          }
+          return IconThemeData(color: onSurfaceVariant);
         }),
       ),
 
+      // Cards - Surface container lowest for max "pop", no borders
       cardTheme: CardThemeData(
-        color: mist,
-        shadowColor: deepLeaf.withValues(alpha: 0.2),
-        elevation: 2,
+        color: surfaceContainerLowest,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: softMint, width: 0.5),
+          borderRadius: BorderRadius.circular(16),
         ),
-        margin: const EdgeInsets.only(bottom: 16),
+        margin: const EdgeInsets.only(bottom: 12),
       ),
 
+      // Buttons - Exaggerated roundedness (pill shape = xl radius)
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: teal,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: softMint.withValues(alpha: 0.4),
-          disabledForegroundColor: night.withValues(alpha: 0.5),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          backgroundColor: primary,
+          foregroundColor: onPrimary,
           elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(48), // Pill shape
+          ),
+          textStyle: const TextStyle(
+            fontFamily: 'Manrope',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
 
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: freshLeaf,
-          foregroundColor: night,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          backgroundColor: primaryContainer,
+          foregroundColor: onPrimaryContainer,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(48),
           ),
-          elevation: 0,
+          textStyle: const TextStyle(
+            fontFamily: 'Manrope',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
 
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: deepLeaf,
-          side: const BorderSide(color: deepLeaf, width: 1.5),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          foregroundColor: primary,
+          side: BorderSide(color: outlineVariant),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(48),
+          ),
         ),
       ),
 
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: teal,
+          foregroundColor: primary,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
         ),
       ),
 
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: teal,
-        foregroundColor: Colors.white,
-        elevation: 4,
+      // Floating Action Button
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: primaryContainer,
+        foregroundColor: onPrimaryContainer,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
       ),
 
+      // Input Fields - Surface container high, no border, ghost border on focus
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: mist.withValues(alpha: 0.85), // swapped with screen bg
-        hintStyle: TextStyle(color: deepLeaf.withValues(alpha: 0.6)),
-        labelStyle: const TextStyle(color: deepLeaf),
-        prefixIconColor: deepLeaf,
-        suffixIconColor: deepLeaf,
+        fillColor: surfaceContainerHigh,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: softMint),
+          borderRadius: BorderRadius.circular(16), // DEFAULT (1rem)
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: softMint),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: teal, width: 2),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: primary, width: 1.5), // Ghost border
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: accentRed),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: error),
         ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: accentRed, width: 2),
-        ),
-        errorStyle: const TextStyle(color: accentRed),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        hintStyle: TextStyle(color: onSurfaceVariant.withValues(alpha: 0.6)),
+        labelStyle: const TextStyle(color: onSurfaceVariant),
       ),
 
-      sliderTheme: SliderThemeData(
-        activeTrackColor: teal,
-        inactiveTrackColor: softMint.withValues(alpha: 0.5),
-        thumbColor: deepLeaf,
-        overlayColor: deepLeaf.withValues(alpha: 0.15),
-        valueIndicatorColor: deepLeaf,
-        valueIndicatorTextStyle: const TextStyle(color: Colors.white),
-      ),
-
-      checkboxTheme: CheckboxThemeData(
-        fillColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return teal;
-          return Colors.transparent;
-        }),
-        checkColor: WidgetStateProperty.all(Colors.white),
-        side: const BorderSide(color: deepLeaf, width: 1.5),
-      ),
-
-      radioTheme: RadioThemeData(
-        fillColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return teal;
-          return deepLeaf;
-        }),
-      ),
-
-      switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return teal;
-          return deepLeaf.withValues(alpha: 0.6);
-        }),
-        trackColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return teal.withValues(alpha: 0.35);
-          }
-          return deepLeaf.withValues(alpha: 0.2);
-        }),
-      ),
-
-      progressIndicatorTheme: ProgressIndicatorThemeData(
-        color: teal,
-        circularTrackColor: softMint.withValues(alpha: 0.3),
-        linearTrackColor: softMint.withValues(alpha: 0.3),
-        linearMinHeight: 4,
-      ),
-
+      // Chips - Secondary fixed dim
       chipTheme: ChipThemeData(
-        backgroundColor: mist,
-        selectedColor: teal,
-        labelStyle: const TextStyle(color: night),
-        secondaryLabelStyle: const TextStyle(color: night),
-        side: const BorderSide(color: deepLeaf),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: surfaceContainerLow,
+        selectedColor: secondaryContainer,
+        labelStyle: const TextStyle(
+          fontFamily: 'Manrope',
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        side: BorderSide.none,
       ),
 
+      // Dividers - GONE! Use spacing instead. If needed, use ghost border.
       dividerTheme: DividerThemeData(
-        color: deepLeaf.withValues(alpha: 0.25),
+        color: outlineVariant.withValues(alpha: 0.4),
         thickness: 1,
         space: 1,
       ),
 
+      // Dialog - Surface container
       dialogTheme: DialogThemeData(
-        backgroundColor: paleMint,
-        titleTextStyle: const TextStyle(
-          color: night,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-        contentTextStyle:
-            const TextStyle(color: deepLeaf, fontSize: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: mist,
-        modalBackgroundColor: mist,
+        backgroundColor: surfaceContainerLow,
+        elevation: 4,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        titleTextStyle: const TextStyle(
+          fontFamily: 'Manrope',
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: onSurface,
+        ),
+        contentTextStyle: const TextStyle(
+          fontFamily: 'Manrope',
+          fontSize: 14,
+          color: onSurfaceVariant,
         ),
       ),
 
+      // Bottom Sheet
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: surfaceContainerLow,
+        modalBackgroundColor: surfaceContainerLow,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+
+      // List Tiles - No dividers, use spacing
       listTileTheme: ListTileThemeData(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         tileColor: Colors.transparent,
-        iconColor: deepLeaf,
-        textColor: night,
-        subtitleTextStyle: TextStyle(color: deepLeaf.withValues(alpha: 0.7)),
-      ),
-
-      iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(
-          foregroundColor: deepLeaf,
-          hoverColor: teal.withValues(alpha: 0.1),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
         ),
       ),
 
-      textTheme: const TextTheme(
-        displayLarge: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 57),
-        displayMedium: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 45),
-        displaySmall: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 36),
-
-        headlineLarge: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 32),
-        headlineMedium: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 24),
-        headlineSmall: TextStyle(color: pine, fontWeight: FontWeight.bold, fontSize: 20),
-
-        titleLarge: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 18),
-        titleMedium: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 16),
-        titleSmall: TextStyle(color: pine, fontWeight: FontWeight.bold, fontSize: 14),
-
-        bodyLarge: TextStyle(color: night, fontSize: 16),
-        bodyMedium: TextStyle(color: pine, fontSize: 14),
-        bodySmall: TextStyle(color: Color(0xB01B4332), fontSize: 12),
-
-        labelLarge: TextStyle(color: night, fontWeight: FontWeight.bold, fontSize: 14),
-        labelMedium: TextStyle(color: pine, fontSize: 12),
-        labelSmall: TextStyle(color: Color(0xB01B4332), fontSize: 11),
+      // Switch
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return primary;
+          return onSurfaceVariant;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return primary.withValues(alpha: 0.3);
+          }
+          return outlineVariant;
+        }),
       ),
+
+      // Checkbox
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return primary;
+          return Colors.transparent;
+        }),
+        checkColor: WidgetStateProperty.all(onPrimary),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+        ),
+        side: BorderSide(color: outlineVariant, width: 1.5),
+      ),
+
+      // Radio
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return primary;
+          return onSurfaceVariant;
+        }),
+      ),
+
+      // Progress Indicator
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: primary,
+        linearTrackColor: surfaceContainerHigh,
+      ),
+
+      // Slider
+      sliderTheme: SliderThemeData(
+        activeTrackColor: primary,
+        inactiveTrackColor: surfaceContainerHigh,
+        thumbColor: primary,
+        overlayColor: primary.withValues(alpha: 0.12),
+      ),
+
+      // Icon Theme
+      iconTheme: const IconThemeData(
+        color: onSurfaceVariant,
+        size: 24,
+      ),
+
+      // Extensions
     ).copyWith(
-      // keep ThemeExtension for compatibility
       extensions: const <ThemeExtension<dynamic>>[
         AppColors.light,
       ],
     );
   }
 
-  // Backwards compatibility getters
-  static ThemeData get lightTheme => theme;
-  static ThemeData get darkTheme => theme;
+  // ─────────────────────────────────────────────────────────────────────────────
+  // DARK THEME - THE MIDNIGHT GREENHOUSE
+  // ─────────────────────────────────────────────────────────────────────────────
+  static ThemeData get darkTheme {
+    // Midnight Greenhouse palette
+    const darkSurface = Color(0xFF121412);           // Level 0 - Base canvas
+    const darkSurfaceContainerLow = Color(0xFF1a1c1a); // Level 1 - Sections
+    const darkSurfaceContainer = Color(0xFF1e201e);    // Level 2 - Cards
+    const darkSurfaceContainerHigh = Color(0xFF282a28);
+    const darkSurfaceContainerHighest = Color(0xFF333533); // Level 3 - Pop-overs
+    const darkSurfaceContainerLowest = Color(0xFF0d0f0d);  // Input fields
+
+    const darkPrimary = Color(0xFFb5cdb3);           // Leaf in moonlight
+    const darkOnPrimary = Color(0xFF213522);
+    const darkPrimaryContainer = Color(0xFF2d4530);
+    const darkOnPrimaryContainer = Color(0xFFd4e8d0);
+
+    const darkSecondary = Color(0xFF9fbca3);
+    const darkOnSecondary = Color(0xFF1e3522);
+    const darkSecondaryContainer = Color(0xFF334d38);  // Chips
+    const darkOnSecondaryContainer = Color(0xFF9fbca3);
+
+    const darkTertiary = Color(0xFFeac34a);           // Gold highlight
+    const darkOnTertiary = Color(0xFF3d3000);
+    const darkTertiaryContainer = Color(0xFF584500);
+    const darkOnTertiaryContainer = Color(0xFFffe08a);
+
+    const darkOnSurface = Color(0xFFe2e3df);         // Body text - WCAG AA
+    const darkOnSurfaceVariant = Color(0xFFc3c8bf);  // Labels
+    const darkOutline = Color(0xFF434842);           // Ghost border
+    const darkOutlineVariant = Color(0xFF434842);    // 15% opacity for ghost borders
+
+    const darkError = Color(0xFFffb4ab);
+    const darkOnError = Color(0xFF690005);
+    const darkErrorContainer = Color(0xFF93000a);
+    const darkOnErrorContainer = Color(0xFFffdad6);
+
+    final colorScheme = ColorScheme(
+      brightness: Brightness.dark,
+      primary: darkPrimary,
+      onPrimary: darkOnPrimary,
+      primaryContainer: darkPrimaryContainer,
+      onPrimaryContainer: darkOnPrimaryContainer,
+      secondary: darkSecondary,
+      onSecondary: darkOnSecondary,
+      secondaryContainer: darkSecondaryContainer,
+      onSecondaryContainer: darkOnSecondaryContainer,
+      tertiary: darkTertiary,
+      onTertiary: darkOnTertiary,
+      tertiaryContainer: darkTertiaryContainer,
+      onTertiaryContainer: darkOnTertiaryContainer,
+      error: darkError,
+      onError: darkOnError,
+      errorContainer: darkErrorContainer,
+      onErrorContainer: darkOnErrorContainer,
+      surface: darkSurface,
+      onSurface: darkOnSurface,
+      onSurfaceVariant: darkOnSurfaceVariant,
+      outline: darkOutline,
+      outlineVariant: darkOutlineVariant.withValues(alpha: 0.15),
+      scrim: const Color(0xFF000000),
+      inverseSurface: darkOnSurface,
+      onInverseSurface: const Color(0xFF2f312e),
+      inversePrimary: darkPrimaryContainer,
+      surfaceContainerLowest: darkSurfaceContainerLowest,
+      surfaceContainerLow: darkSurfaceContainerLow,
+      surfaceContainer: darkSurfaceContainer,
+      surfaceContainerHigh: darkSurfaceContainerHigh,
+      surfaceContainerHighest: darkSurfaceContainerHighest,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: darkSurface,
+
+      fontFamily: 'Manrope',
+      textTheme: _buildTextTheme(Brightness.dark),
+
+      // App Bar - No-line, use surface color
+      appBarTheme: AppBarTheme(
+        backgroundColor: darkSurface,
+        foregroundColor: darkOnSurface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleTextStyle: const TextStyle(
+          fontFamily: 'Manrope',
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: darkOnSurface,
+          letterSpacing: -0.5,
+        ),
+        iconTheme: const IconThemeData(color: darkOnSurface),
+      ),
+
+      // Bottom Navigation - Frosted glass effect (70% opacity with blur)
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: darkSurface.withValues(alpha: 0.7),
+        elevation: 0,
+        indicatorColor: darkPrimaryContainer,
+        surfaceTintColor: Colors.transparent,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const TextStyle(
+              fontFamily: 'Manrope',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: darkOnPrimaryContainer,
+            );
+          }
+          return TextStyle(
+            fontFamily: 'Manrope',
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: darkOnSurfaceVariant,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: darkOnPrimaryContainer);
+          }
+          return IconThemeData(color: darkOnSurfaceVariant);
+        }),
+      ),
+
+      // Cards - Surface container for natural lift, no borders
+      cardTheme: CardThemeData(
+        color: darkSurfaceContainer,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(32), // rounded-xl (3rem)
+        ),
+        margin: const EdgeInsets.only(bottom: 12),
+      ),
+
+      // Primary Button - Full rounded (pill), leaf in moonlight
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: darkPrimary,
+          foregroundColor: darkOnPrimary,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(9999), // full pill
+          ),
+          textStyle: const TextStyle(
+            fontFamily: 'Manrope',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+
+      // Secondary Button - Transparent with ghost border
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: darkPrimaryContainer,
+          foregroundColor: darkOnPrimaryContainer,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(9999), // full pill
+          ),
+          textStyle: const TextStyle(
+            fontFamily: 'Manrope',
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+
+      // Tertiary Button - Gold highlight with glow on hover
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: darkTertiary,
+          side: BorderSide(color: darkOutlineVariant.withValues(alpha: 0.15)),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(9999), // full pill
+          ),
+        ),
+      ),
+
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: darkPrimary,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+      ),
+
+      // Floating Action Button
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: darkPrimaryContainer,
+        foregroundColor: darkOnPrimaryContainer,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+
+      // Input Fields - Surface container lowest, no border
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: darkSurfaceContainerLowest,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: darkPrimary.withValues(alpha: 0.5),
+            width: 1,
+          ),
+        ),
+        hintStyle: TextStyle(color: darkOnSurfaceVariant.withValues(alpha: 0.6)),
+        labelStyle: const TextStyle(color: darkOnSurfaceVariant),
+      ),
+
+      // Chips - Secondary container, full rounded (pebble-like)
+      chipTheme: ChipThemeData(
+        backgroundColor: darkSecondaryContainer,
+        selectedColor: darkTertiaryContainer,
+        labelStyle: const TextStyle(
+          fontFamily: 'Manrope',
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: darkOnSecondaryContainer,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(9999), // full - pebble
+        ),
+        side: BorderSide.none,
+      ),
+
+      // Dividers - GONE! Use spacing instead. If needed, use ghost border.
+      dividerTheme: DividerThemeData(
+        color: darkOutlineVariant.withValues(alpha: 0.15),
+        thickness: 1,
+        space: 1,
+      ),
+
+      // Dialog - Surface container
+      dialogTheme: DialogThemeData(
+        backgroundColor: darkSurfaceContainerHigh,
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        titleTextStyle: const TextStyle(
+          fontFamily: 'Manrope',
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: darkOnSurface,
+        ),
+        contentTextStyle: const TextStyle(
+          fontFamily: 'Manrope',
+          fontSize: 14,
+          color: darkOnSurfaceVariant,
+        ),
+      ),
+
+      // Bottom Sheet
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: darkSurfaceContainerHigh,
+        modalBackgroundColor: darkSurfaceContainerHigh,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+
+      // List Tiles - No dividers, use spacing
+      listTileTheme: ListTileThemeData(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        tileColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+
+      // Switch
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return darkPrimary;
+          return darkOnSurfaceVariant;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return darkPrimary.withValues(alpha: 0.3);
+          }
+          return darkOutlineVariant.withValues(alpha: 0.15);
+        }),
+      ),
+
+      // Checkbox
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return darkPrimary;
+          return Colors.transparent;
+        }),
+        checkColor: WidgetStateProperty.all(darkOnPrimary),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+        ),
+        side: BorderSide(color: darkOutlineVariant.withValues(alpha: 0.15), width: 1.5),
+      ),
+
+      // Radio
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return darkPrimary;
+          return darkOnSurfaceVariant;
+        }),
+      ),
+
+      // Progress Indicator
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: darkPrimary,
+        linearTrackColor: darkSurfaceContainerHigh,
+      ),
+
+      // Slider
+      sliderTheme: SliderThemeData(
+        activeTrackColor: darkPrimary,
+        inactiveTrackColor: darkSurfaceContainerHigh,
+        thumbColor: darkPrimary,
+        overlayColor: darkPrimary.withValues(alpha: 0.12),
+      ),
+
+      // Icon Theme
+      iconTheme: const IconThemeData(
+        color: darkOnSurfaceVariant,
+        size: 24,
+      ),
+
+    ).copyWith(
+      extensions: const <ThemeExtension<dynamic>>[
+        AppColors.dark,
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEXT THEME BUILDER
+  // ─────────────────────────────────────────────────────────────────────────────
+  static TextTheme _buildTextTheme(Brightness brightness) {
+    final isLight = brightness == Brightness.light;
+    final onSurface = isLight ? const Color(0xFF1B1C1A) : const Color(0xFFE3E2DD);
+    final onSurfaceVariant = isLight ? const Color(0xFF464743) : const Color(0xFFc3c8bf);
+
+    return TextTheme(
+      // Display - Manrope (hero moments)
+      displayLarge: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 57,
+        fontWeight: FontWeight.bold,
+        letterSpacing: -1.5,
+        color: onSurface,
+      ),
+      displayMedium: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 45,
+        fontWeight: FontWeight.bold,
+        letterSpacing: -0.5,
+        color: onSurface,
+      ),
+      displaySmall: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 36,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 0,
+        color: onSurface,
+      ),
+
+      // Headline - Manrope (editorial authority)
+      headlineLarge: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 32,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 0,
+        color: onSurface,
+      ),
+      headlineMedium: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 28,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 0,
+        color: onSurface,
+      ),
+      headlineSmall: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 24,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 0,
+        color: onSurface,
+      ),
+
+      // Title - Manrope
+      titleLarge: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 22,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
+        color: onSurface,
+      ),
+      titleMedium: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.15,
+        color: onSurface,
+      ),
+      titleSmall: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.1,
+        color: onSurface,
+      ),
+
+      // Body - Inter (utility/readability)
+      bodyLarge: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 16,
+        fontWeight: FontWeight.normal,
+        letterSpacing: 0.5,
+        color: onSurface,
+      ),
+      bodyMedium: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 14,
+        fontWeight: FontWeight.normal,
+        letterSpacing: 0.25,
+        color: onSurface,
+      ),
+      bodySmall: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 12,
+        fontWeight: FontWeight.normal,
+        letterSpacing: 0.4,
+        color: onSurfaceVariant,
+      ),
+
+      // Label - Inter
+      labelLarge: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.1,
+        color: onSurface,
+      ),
+      labelMedium: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.5,
+        color: onSurfaceVariant,
+      ),
+      labelSmall: TextStyle(
+        fontFamily: 'Manrope',
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.5,
+        color: onSurfaceVariant,
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // APP COLORS EXTENSION
+  // ─────────────────────────────────────────────────────────────────────────────
+  static const Color successGreen = Color(0xFF2D6A4F);
+  static const Color infoBlue = Color(0xFF3D6B54);
 }
 
-@immutable
 class AppColors extends ThemeExtension<AppColors> {
   final Color successGreen;
   final Color infoBlue;
@@ -350,10 +900,17 @@ class AppColors extends ThemeExtension<AppColors> {
   });
 
   static const light = AppColors(
-    successGreen: AppTheme.teal,
-    infoBlue: AppTheme.freshLeaf,
-    infoBlueDark: AppTheme.deepLeaf,
-    infoBlueBackground: AppTheme.paleMint,
+    successGreen: AppTheme.successGreen,
+    infoBlue: AppTheme.infoBlue,
+    infoBlueDark: AppTheme.primaryContainer,
+    infoBlueBackground: AppTheme.surfaceContainerLow,
+  );
+
+  static const dark = AppColors(
+    successGreen: Color(0xFF5a9a76),
+    infoBlue: Color(0xFF9fbca3),
+    infoBlueDark: Color(0xFF2d4530),
+    infoBlueBackground: Color(0xFF1a1c1a),
   );
 
   @override
@@ -378,8 +935,7 @@ class AppColors extends ThemeExtension<AppColors> {
       successGreen: Color.lerp(successGreen, other.successGreen, t) ?? successGreen,
       infoBlue: Color.lerp(infoBlue, other.infoBlue, t) ?? infoBlue,
       infoBlueDark: Color.lerp(infoBlueDark, other.infoBlueDark, t) ?? infoBlueDark,
-      infoBlueBackground: Color.lerp(infoBlueBackground, other.infoBlueBackground, t) ??
-          infoBlueBackground,
+      infoBlueBackground: Color.lerp(infoBlueBackground, other.infoBlueBackground, t) ?? infoBlueBackground,
     );
   }
 }

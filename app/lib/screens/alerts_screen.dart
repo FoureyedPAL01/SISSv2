@@ -1,86 +1,79 @@
 // lib/screens/alerts_screen.dart
 //
-// Changes from the previous version:
-//  1. Header shows "Alerts" title, a red unread-count badge, and a "Clear All"
-//     button that permanently deletes all alerts for this device.
-//  2. Filter tab row: All | Info | Warning | Error — filters on the
-//     existing `severity` column (values: 'info', 'warning', 'error').
-//  3. "Unread only" toggle — when active, hides rows where is_read = true.
-//  4. Alerts are grouped under date headers (e.g. "3/9/2026").
-//  5. Tapping a card calls markAsRead(), setting is_read = true in Supabase.
-//  6. Each card shows: severity icon, message, relative time, severity chip.
-//  7. Real-time stream keeps the list live without a manual refresh.
+// Table columns used (public.alerts):
+//   id          bigserial
+//   device_id   uuid
+//   alert_type  text
+//   message     text
+//   resolved    boolean  (default false)
+//   created_at  timestamptz
+//
+// Design: fetch once on load, store rows in local state, mutate locally
+// and persist to Supabase. No stream — no timing conflicts.
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state_provider.dart';
-import '../theme.dart';
+import '../utils/date_helpers.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Severity helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Impact classification ─────────────────────────────────────────────────────
 
-// Maps the `severity` text value from Supabase to display properties.
-// Supabase stores lowercase: 'info', 'warning', 'error'.
-enum _Severity { info, warning, error, unknown }
+enum _Impact { critical, warning, info }
 
-_Severity _parseSeverity(String? raw) {
-  switch (raw?.toLowerCase()) {
-    case 'info':    return _Severity.info;
-    case 'warning': return _Severity.warning;
-    case 'error':   return _Severity.error;
-    default:        return _Severity.unknown;
+_Impact _classify(String alertType) {
+  final t = alertType.toLowerCase();
+  if (t.contains('sensor_stuck') ||
+      t.contains('no_flow') ||
+      t.contains('fault')) {
+    return _Impact.critical;
+  }
+  if (t.contains('pump') ||
+      t.contains('wifi') ||
+      t.contains('offline') ||
+      t.contains('reconnect')) {
+    return _Impact.warning;
+  }
+  return _Impact.info;
+}
+
+Color _impactColor(_Impact i) {
+  switch (i) {
+    case _Impact.critical:
+      return const Color(0xFFEF4444);
+    case _Impact.warning:
+      return const Color(0xFFF59E0B);
+    case _Impact.info:
+      return const Color(0xFF3B82F6);
   }
 }
 
-// Label shown in the chip and the filter tab
-String _severityLabel(_Severity s) {
-  switch (s) {
-    case _Severity.info:    return 'Info';
-    case _Severity.warning: return 'Warning';
-    case _Severity.error:   return 'Error';
-    case _Severity.unknown: return 'Unknown';
+String _impactLabel(_Impact i) {
+  switch (i) {
+    case _Impact.critical:
+      return 'CRITICAL';
+    case _Impact.warning:
+      return 'WARNING';
+    case _Impact.info:
+      return 'INFO';
   }
 }
 
-// Chip background colour
-Color _severityColor(_Severity s) {
-  switch (s) {
-    case _Severity.info:    return const Color(0xFF3B82F6); // blue
-    case _Severity.warning: return const Color(0xFFF59E0B); // amber
-    case _Severity.error:   return const Color(0xFFEF4444); // red
-    case _Severity.unknown: return Colors.grey;
+IconData _impactIcon(_Impact i) {
+  switch (i) {
+    case _Impact.critical:
+      return Icons.error_rounded;
+    case _Impact.warning:
+      return Icons.warning_amber_rounded;
+    case _Impact.info:
+      return Icons.info_rounded;
   }
 }
 
-// Icon shown on the left of the card
-PhosphorIconData _severityIcon(_Severity s) {
-  switch (s) {
-    case _Severity.info:    return PhosphorIcons.info();
-    case _Severity.warning: return PhosphorIcons.warning();
-    case _Severity.error:   return PhosphorIcons.xCircle();
-    case _Severity.unknown: return PhosphorIcons.bell();
-  }
-}
+// ── Time helper removed natively (using DateHelpers) ──────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Relative time helper  ("10 minutes ago", "about 1 hour ago", …)
-// ─────────────────────────────────────────────────────────────────────────────
-String _timeAgo(DateTime dt) {
-  final diff = DateTime.now().difference(dt);
-  if (diff.inSeconds < 60)  return 'just now';
-  if (diff.inMinutes < 60)  return '${diff.inMinutes} minutes ago';
-  if (diff.inHours   < 2)   return 'about 1 hour ago';
-  if (diff.inHours   < 24)  return 'about ${diff.inHours} hours ago';
-  if (diff.inDays    < 2)   return 'yesterday';
-  return '${diff.inDays} days ago';
-}
+// ── Screen ────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Screen
-// ─────────────────────────────────────────────────────────────────────────────
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({super.key});
 
@@ -89,351 +82,522 @@ class AlertsScreen extends StatefulWidget {
 }
 
 class _AlertsScreenState extends State<AlertsScreen> {
-  // Stream is created once in initState so it doesn't re-subscribe on rebuild.
-  late final Stream<List<Map<String, dynamic>>> _stream;
-
-  // Active filter: null = All, otherwise matches severity string
-  String? _severityFilter; // null | 'info' | 'warning' | 'error'
-
-  // When true, only show rows where is_read = false
-  bool _unreadOnly = false;
+  // Single source of truth — managed entirely in local state.
+  List<Map<String, dynamic>> _alerts = [];
+  bool _loading = true;
+  String? _error;
+  String? _selectedAlertType;
 
   @override
   void initState() {
     super.initState();
-    // Stream all alerts for this device, newest first, no hard limit.
-    // Client-side filtering is applied in build() so switching tabs is instant.
-    _stream = Supabase.instance.client
-        .from('alerts')
-        .stream(primaryKey: ['id'])
-        .order('created_at', ascending: false);
+    // Wait one frame so Provider is available.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetch());
   }
 
-  // ── Mark a single alert as read ───────────────────────────────────────────
-  // Called when the user taps a card.
-  Future<void> _markAsRead(int alertId) async {
-    await Supabase.instance.client
-        .from('alerts')
-        .update({'is_read': true})
-        .eq('id', alertId);
-    // The stream will emit the updated row automatically.
+  // ── Fetch ─────────────────────────────────────────────────────────────────
+
+  Future<void> _fetch() async {
+    final deviceId = context.read<AppStateProvider>().deviceId;
+    if (deviceId == null) {
+      setState(() {
+        _loading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final rows = await Supabase.instance.client
+          .from('alerts')
+          .select()
+          .eq('device_id', deviceId)
+          .order('created_at', ascending: false);
+
+      if (mounted) {
+        setState(() {
+          _alerts = List<Map<String, dynamic>>.from(rows);
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
+    }
   }
 
-  // ── Delete all alerts for this device ────────────────────────────────────
-  // Called by the "Clear All" button. Shows a confirmation dialog first.
-  Future<void> _clearAll(String deviceId) async {
-    final confirmed = await showDialog<bool>(
+  // ── Resolve one alert ─────────────────────────────────────────────────────
+  // 1. Update local list immediately → UI reflects change at once.
+  // 2. Persist to Supabase in background.
+  // 3. On failure, revert the local change and show a snackbar.
+
+  Future<void> _resolve(int id) async {
+    // Local update.
+    final index = _alerts.indexWhere((a) => a['id'] == id);
+    if (index == -1) return;
+
+    setState(() {
+      _alerts[index] = Map.from(_alerts[index])..['resolved'] = true;
+    });
+
+    // Persist.
+    try {
+      await Supabase.instance.client
+          .from('alerts')
+          .update({'resolved': true})
+          .eq('id', id);
+    } catch (e) {
+      // Revert.
+      if (mounted) {
+        setState(() {
+          _alerts[index] = Map.from(_alerts[index])..['resolved'] = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not resolve alert. Try again.')),
+        );
+      }
+    }
+  }
+
+  // ── Delete all alerts ─────────────────────────────────────────────────────
+  // 1. Confirm with user.
+  // 2. Snapshot the current list in case we need to revert.
+  // 3. Clear local list immediately → UI shows empty state at once.
+  // 4. Persist delete to Supabase in background.
+  // 5. On failure, restore the snapshot and show a snackbar.
+
+  Future<void> _deleteAll() async {
+    final deviceId = context.read<AppStateProvider>().deviceId;
+    if (deviceId == null || _alerts.isEmpty) return;
+
+    final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Clear All Alerts'),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('Clear all alerts?'),
         content: const Text(
-          'This will permanently delete all alerts. This cannot be undone.',
+          'This permanently deletes every alert for this device.',
         ),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.of(context, rootNavigator: true).pop(false),
+            onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.of(context, rootNavigator: true).pop(true),
-            child: Text(
-              'Delete All',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Delete all',
+              style: TextStyle(color: Colors.red),
             ),
           ),
         ],
       ),
     );
 
-    if (confirmed == true) {
+    if (ok != true || !mounted) return;
+
+    // Snapshot for potential rollback.
+    final snapshot = List<Map<String, dynamic>>.from(_alerts);
+
+    // Clear locally.
+    setState(() => _alerts = []);
+
+    // Persist.
+    try {
       await Supabase.instance.client
           .from('alerts')
           .delete()
           .eq('device_id', deviceId);
+    } catch (e) {
+      // Revert.
+      if (mounted) {
+        setState(() => _alerts = snapshot);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not delete alerts. Try again.')),
+        );
+      }
     }
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
+
+  List<String> get _availableAlertTypes {
+    final types = _alerts
+        .map((a) => (a['alert_type'] as String?)?.trim())
+        .whereType<String>()
+        .where((type) => type.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return types;
+  }
+
+  List<Map<String, dynamic>> get _visibleAlerts {
+    if (_selectedAlertType == null) {
+      return _alerts;
+    }
+    return _alerts
+        .where((a) => (a['alert_type'] as String?) == _selectedAlertType)
+        .toList();
+  }
+
+  String _formatAlertTypeLabel(String type) {
+    return type
+        .split('_')
+        .where((part) => part.isNotEmpty)
+        .map(
+          (part) => part[0].toUpperCase() + part.substring(1).toLowerCase(),
+        )
+        .join(' ');
+  }
+
   @override
   Widget build(BuildContext context) {
-    final colors    = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final deviceId  = context.watch<AppStateProvider>().deviceId;
+    final cs = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _stream,
-        builder: (context, snapshot) {
-          // ── Loading ──────────────────────────────────────────────────────
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          // ── Error ────────────────────────────────────────────────────────
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Error: ${snapshot.error}',
-                style: TextStyle(color: colors.error),
-              ),
-            );
-          }
-
-          // ── Filter: only show alerts for this device ──────────────────
-          // The stream returns all rows the RLS policy allows; we additionally
-          // filter by deviceId to be safe when there are multiple devices.
-          final all = (snapshot.data ?? []).where((a) {
-            if (deviceId != null && a['device_id'] != deviceId) return false;
-            return true;
-          }).toList();
-
-          // Count unread across all severity types (for the badge)
-          final unreadCount = all.where((a) => a['is_read'] != true).length;
-
-          // Apply tab filter
-          final filtered = all.where((a) {
-            if (_severityFilter != null &&
-                a['severity']?.toString().toLowerCase() != _severityFilter) {
-              return false;
-            }
-            if (_unreadOnly && a['is_read'] == true) return false;
-            return true;
-          }).toList();
-
-          // ── Group by date ─────────────────────────────────────────────
-          // Produces a list of mixed items: String (date header) or Map (row).
-          final List<dynamic> grouped = [];
-          String? lastDate;
-          for (final a in filtered) {
-            final dt = DateTime.tryParse(a['created_at'] ?? '')?.toLocal();
-            final dateStr = dt == null
-                ? 'Unknown date'
-                : '${dt.month}/${dt.day}/${dt.year}';
-            if (dateStr != lastDate) {
-              grouped.add(dateStr); // date header
-              lastDate = dateStr;
-            }
-            grouped.add(a);
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Page header ─────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Alerts',
-                      style: textTheme.headlineMedium?.copyWith(
-                        fontFamily: 'Poppins',
-                        fontSize:   24,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-
-                    // Red badge showing unread count (hidden when 0)
-                    if (unreadCount > 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color:        colors.error,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '$unreadCount',
-                          style: const TextStyle(
-                            color:      Colors.white,
-                            fontSize:   12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-
-                    const Spacer(),
-
-                    // Clear All button — only shown when there are alerts
-                    if (all.isNotEmpty && deviceId != null)
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colors.error,
-                          side:            BorderSide(color: colors.error),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8,
-                          ),
-                        ),
-                        onPressed: () => _clearAll(deviceId),
-                        icon:  Icon(PhosphorIcons.trash(), size: 16),
-                        label: const Text('Clear All', style: TextStyle(fontSize: 13)),
-                      ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
-                child: Text(
-                  'System notifications & threshold alerts',
-                  style: textTheme.bodyMedium,
-                ),
-              ),
-
-              // ── Filter tabs + Unread toggle ──────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Row(
-                  children: [
-                    // Segmented filter: All | Info | Warning | Error
-                    _FilterTabBar(
-                      selected: _severityFilter,
-                      onChanged: (v) => setState(() => _severityFilter = v),
-                      colors:   colors,
-                    ),
-                    const SizedBox(width: 10),
-
-                    // Unread only toggle chip
-                    GestureDetector(
-                      onTap: () => setState(() => _unreadOnly = !_unreadOnly),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _unreadOnly
-                              ? colors.onSurface
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: colors.onSurface.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              PhosphorIcons.bell(),
-                              size:  14,
-                              color: _unreadOnly
-                                  ? colors.surface
-                                  : colors.onSurface,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Unread only',
-                              style: TextStyle(
-                                fontSize:   13,
-                                color: _unreadOnly
-                                    ? colors.surface
-                                    : colors.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ── Alert list ───────────────────────────────────────────────
-              Expanded(
-                child: filtered.isEmpty
-                    ? _buildEmptyState(colors, unreadCount)
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                        itemCount: grouped.length,
-                        itemBuilder: (_, i) {
-                          final item = grouped[i];
-
-                          // Date header
-                          if (item is String) {
-                            return Padding(
-                              padding: const EdgeInsets.only(
-                                top: 16, bottom: 8,
-                              ),
-                              child: Text(
-                                item,
-                                style: TextStyle(
-                                  color:      colors.onSurface,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize:   13,
-                                ),
-                              ),
-                            );
-                          }
-
-                          // Alert card
-                          final alert    = item as Map<String, dynamic>;
-                          final severity = _parseSeverity(
-                            alert['severity'] as String?,
-                          );
-                          final isRead   = alert['is_read'] == true;
-                          final dt       = DateTime.tryParse(
-                            alert['created_at'] ?? '',
-                          )?.toLocal();
-
-                          return _AlertCard(
-                            severity:  severity,
-                            message:   alert['message'] as String? ??
-                                       alert['alert_type'] as String? ??
-                                       'No message',
-                            timeAgo:   dt != null ? _timeAgo(dt) : '',
-                            isRead:    isRead,
-                            colors:    colors,
-                            onTap: isRead
-                                ? null
-                                : () => _markAsRead(alert['id'] as int),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          );
-        },
-      ),
+    return Material(
+      type: MaterialType.transparency,
+      child: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? _buildError(cs)
+          : _buildContent(cs),
     );
   }
 
-  // ── Empty state ───────────────────────────────────────────────────────────
-  Widget _buildEmptyState(ColorScheme colors, int totalUnread) {
-    // Differentiate between "no alerts at all" vs "none match current filter"
-    final bool isFiltered = _severityFilter != null || _unreadOnly;
-    return Center(
+  Widget _buildError(ColorScheme cs) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            isFiltered
-                ? PhosphorIcons.funnel()
-                : PhosphorIcons.checkCircle(),
-            size:  56,
-            color: AppTheme.teal,
+            Icons.cloud_off_rounded,
+            size: 48,
+            color: cs.onSurface.withValues(alpha: 0.3),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
-            isFiltered
-                ? 'No alerts match this filter'
-                : 'All clear — system running smoothly',
+            'Could not load alerts.',
             style: TextStyle(
-              fontSize:   15,
-              color:      colors.onSurface,
               fontWeight: FontWeight.bold,
+              color: cs.onSurface.withValues(alpha: 0.6),
             ),
           ),
-          if (isFiltered) ...[
-            const SizedBox(height: 6),
-            TextButton(
-              onPressed: () => setState(() {
-                _severityFilter = null;
-                _unreadOnly     = false;
-              }),
-              child: const Text('Clear filters'),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _fetch,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _buildContent(ColorScheme cs) {
+    final unreadCount = _alerts.where((a) => a['resolved'] != true).length;
+    final visibleAlerts = _visibleAlerts;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Header ───────────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 16, 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    unreadCount > 0 ? '$unreadCount unresolved' : 'All clear',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: unreadCount > 0
+                          ? cs.error
+                          : cs.onSurface.withValues(alpha: 0.45),
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              // Refresh
+              IconButton(
+                onPressed: _fetch,
+                icon: const Icon(Icons.refresh_rounded),
+                tooltip: 'Refresh',
+                color: cs.onSurface.withValues(alpha: 0.5),
+              ),
+              // Clear all
+              if (_alerts.isNotEmpty)
+                TextButton.icon(
+                  style: TextButton.styleFrom(foregroundColor: cs.error),
+                  onPressed: _deleteAll,
+                  icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+                  label: const Text('Clear all'),
+                ),
+            ],
+          ),
+        ),
+
+        // ── Impact legend ─────────────────────────────────────────────────
+        if (_alerts.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+            child: Row(
+              children: [
+                _LegendDot(
+                  color: _impactColor(_Impact.critical),
+                  label: 'Critical',
+                ),
+                const SizedBox(width: 14),
+                _LegendDot(
+                  color: _impactColor(_Impact.warning),
+                  label: 'Warning',
+                ),
+                const SizedBox(width: 14),
+                _LegendDot(color: _impactColor(_Impact.info), label: 'Info'),
+              ],
+            ),
+          ),
+
+        if (_alerts.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: const Text('All'),
+                      selected: _selectedAlertType == null,
+                      onSelected: (_) {
+                        setState(() => _selectedAlertType = null);
+                      },
+                    ),
+                  ),
+                  for (final type in _availableAlertTypes)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(_formatAlertTypeLabel(type)),
+                        selected: _selectedAlertType == type,
+                        onSelected: (_) {
+                          setState(() {
+                            _selectedAlertType =
+                                _selectedAlertType == type ? null : type;
+                          });
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+        const Divider(height: 1),
+
+        // ── List / empty ──────────────────────────────────────────────────
+        Expanded(
+          child: _alerts.isEmpty
+              ? const _EmptyState()
+              : visibleAlerts.isEmpty
+              ? _FilteredEmptyState(
+                  selectedLabel: _formatAlertTypeLabel(_selectedAlertType!),
+                  onClearFilter: () {
+                    setState(() => _selectedAlertType = null);
+                  },
+                )
+              : RefreshIndicator(
+                  onRefresh: _fetch,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                    itemCount: visibleAlerts.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) {
+                      final a = visibleAlerts[i];
+                      final resolved = a['resolved'] == true;
+                      final type = (a['alert_type'] as String?) ?? 'alert';
+                      final dt = a['created_at'] != null
+                          ? DateTime.tryParse(
+                              a['created_at'] as String,
+                            )?.toLocal()
+                          : null;
+
+                      return _AlertTile(
+                        alertType: type,
+                        message: (a['message'] as String?) ?? '',
+                        timeAgo: dt != null ? DateHelpers.timeAgoShort(dt) : '',
+                        impact: _classify(type),
+                        resolved: resolved,
+                        onResolve: resolved
+                            ? null
+                            : () => _resolve(a['id'] as int),
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Alert tile ────────────────────────────────────────────────────────────────
+
+class _AlertTile extends StatelessWidget {
+  final String alertType;
+  final String message;
+  final String timeAgo;
+  final _Impact impact;
+  final bool resolved;
+  final VoidCallback? onResolve;
+
+  const _AlertTile({
+    required this.alertType,
+    required this.message,
+    required this.timeAgo,
+    required this.impact,
+    required this.resolved,
+    this.onResolve,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final accent = resolved
+        ? cs.onSurface.withValues(alpha: 0.25)
+        : _impactColor(impact);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      decoration: BoxDecoration(
+        color: resolved
+            ? cs.surfaceContainerHighest.withValues(alpha: 0.35)
+            : cs.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: resolved
+              ? cs.onSurface.withValues(alpha: 0.08)
+              : _impactColor(impact).withValues(alpha: 0.4),
+          width: resolved ? 1 : 1.5,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Impact icon
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              resolved
+                  ? Icons.check_circle_outline_rounded
+                  : _impactIcon(impact),
+              size: 18,
+              color: accent,
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Text
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        _impactLabel(impact),
+                        style: TextStyle(
+                          fontSize: 9,
+                          letterSpacing: 0.8,
+                          fontWeight: FontWeight.bold,
+                          color: accent,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        alertType.replaceAll('_', ' '),
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: cs.onSurface.withValues(alpha: 0.4),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: resolved
+                        ? cs.onSurface.withValues(alpha: 0.38)
+                        : cs.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  resolved ? 'Resolved · $timeAgo' : timeAgo,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurface.withValues(alpha: 0.35),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Resolve button
+          if (onResolve != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onResolve,
+              child: Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: _impactColor(impact).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _impactColor(impact).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Icon(
+                  Icons.check_rounded,
+                  size: 16,
+                  color: _impactColor(impact),
+                ),
+              ),
             ),
           ],
         ],
@@ -442,193 +606,124 @@ class _AlertsScreenState extends State<AlertsScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Filter tab bar: All | Info | Warning | Error
-// Selected tab gets a filled background; others are outlined.
-// ─────────────────────────────────────────────────────────────────────────────
-class _FilterTabBar extends StatelessWidget {
-  final String? selected;       // null = All
-  final ValueChanged<String?> onChanged;
-  final ColorScheme colors;
+// ── Legend dot ────────────────────────────────────────────────────────────────
 
-  const _FilterTabBar({
-    required this.selected,
-    required this.onChanged,
-    required this.colors,
-  });
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _LegendDot({required this.color, required this.label});
 
   @override
   Widget build(BuildContext context) {
-    // Tabs: label → filter value (null = All)
-    final tabs = <String, String?>{
-      'All':     null,
-      'Info':    'info',
-      'Warning': 'warning',
-      'Error':   'error',
-    };
-
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: tabs.entries.map((e) {
-        final isSelected = selected == e.value;
-
-        // "All" tab uses the primary colour when selected
-        // Severity tabs use their own colour when selected
-        Color activeBg;
-        if (e.value == null) {
-          activeBg = AppTheme.teal;
-        } else {
-          activeBg = _severityColor(_parseSeverity(e.value));
-        }
-
-        return GestureDetector(
-          onTap: () => onChanged(e.value),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            margin: const EdgeInsets.only(right: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: isSelected ? activeBg : Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isSelected
-                    ? activeBg
-                    : colors.onSurface.withValues(alpha: 0.25),
-              ),
-            ),
-            child: Text(
-              e.key,
-              style: TextStyle(
-                fontSize:   13,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color:      isSelected ? Colors.white : colors.onSurface,
-              ),
-            ),
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.5),
           ),
-        );
-      }).toList(),
+        ),
+      ],
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Individual alert card
-// Unread cards have a slightly stronger background tint.
-// Read cards are more muted.
-// ─────────────────────────────────────────────────────────────────────────────
-class _AlertCard extends StatelessWidget {
-  final _Severity severity;
-  final String    message;
-  final String    timeAgo;
-  final bool      isRead;
-  final ColorScheme colors;
-  final VoidCallback? onTap; // null when already read
+// ── Empty state ───────────────────────────────────────────────────────────────
 
-  const _AlertCard({
-    required this.severity,
-    required this.message,
-    required this.timeAgo,
-    required this.isRead,
-    required this.colors,
-    required this.onTap,
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.notifications_none_rounded,
+            size: 64,
+            color: cs.onSurface.withValues(alpha: 0.18),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No alerts',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: cs.onSurface.withValues(alpha: 0.45),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Everything looks good.',
+            style: TextStyle(
+              fontSize: 14,
+              color: cs.onSurface.withValues(alpha: 0.3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilteredEmptyState extends StatelessWidget {
+  final String selectedLabel;
+  final VoidCallback onClearFilter;
+
+  const _FilteredEmptyState({
+    required this.selectedLabel,
+    required this.onClearFilter,
   });
 
   @override
   Widget build(BuildContext context) {
-    final sColor = _severityColor(severity);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          // Unread: slightly tinted; Read: plain surface
-          color: isRead
-              ? colors.surface
-              : colors.surface.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isRead
-                ? colors.onSurface.withValues(alpha: 0.1)
-                : sColor.withValues(alpha: 0.3),
-            width: isRead ? 1 : 1.5,
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final cs = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // ── Severity icon ──────────────────────────────────────────────
-            Container(
-              width:  36,
-              height: 36,
-              decoration: BoxDecoration(
-                color:        sColor.withValues(alpha: isRead ? 0.1 : 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                _severityIcon(severity),
-                color: sColor.withValues(alpha: isRead ? 0.5 : 1.0),
-                size:  18,
+            Icon(
+              Icons.filter_list_off_rounded,
+              size: 56,
+              color: cs.onSurface.withValues(alpha: 0.2),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No $selectedLabel alerts',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: cs.onSurface.withValues(alpha: 0.5),
               ),
             ),
-            const SizedBox(width: 12),
-
-            // ── Message + time ─────────────────────────────────────────────
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message,
-                    style: TextStyle(
-                      color: isRead
-                          ? colors.onSurface.withValues(alpha: 0.5)
-                          : colors.onSurface,
-                      fontSize:   14,
-                      fontWeight:
-                          isRead ? FontWeight.normal : FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Text(
-                        timeAgo,
-                        style: TextStyle(
-                          color:    colors.onSurface.withValues(alpha: 0.4),
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Severity chip
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: sColor.withValues(
-                            alpha: isRead ? 0.08 : 0.15,
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          _severityLabel(severity),
-                          style: TextStyle(
-                            color:      sColor.withValues(
-                              alpha: isRead ? 0.5 : 1.0,
-                            ),
-                            fontSize:   11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+            const SizedBox(height: 6),
+            Text(
+              'Try another alert type or clear the filter.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: cs.onSurface.withValues(alpha: 0.35),
               ),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: onClearFilter,
+              icon: const Icon(Icons.filter_alt_off_rounded),
+              label: const Text('Clear filter'),
             ),
           ],
         ),

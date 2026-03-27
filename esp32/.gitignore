@@ -9,6 +9,7 @@ venv/
 .pioenvs/
 .piolibdeps/
 .vscode/
+.idea/
 
 # Arduino IDE
 *.hex

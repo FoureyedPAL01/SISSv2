@@ -1,13 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/notification_service.dart';
 import 'dart:async';
 
 class AppStateProvider extends ChangeNotifier {
   // State variables
-  bool _isLoading = true;
+  bool      _isLoading = true;
+  ThemeMode _themeMode = ThemeMode.system;
   String? _deviceId;
   Map<String, dynamic> _latestSensorData = {};
   List<Map<String, dynamic>> _sensorHistory = [];
+
+  bool _justLoggedIn = false;
+  bool get justLoggedIn => _justLoggedIn;
+
+  void clearJustLoggedIn() {
+    _justLoggedIn = false;
+    notifyListeners();
+  }
+
+  bool _relinkRequested = false;
+  bool get relinkRequested => _relinkRequested;
+
+  void requestRelink() {
+    _relinkRequested = true;
+    notifyListeners();
+  }
+
+  void clearRelink() {
+    _relinkRequested = false;
+    notifyListeners();
+  }
 
   // User profile and settings
   Map<String, dynamic>? _userProfile;
@@ -32,79 +56,102 @@ class AppStateProvider extends ChangeNotifier {
   bool _isPumpRunning = false;
   DateTime? _lastStatusCheck;
 
-  bool get isLoading => _isLoading;
-  String? get deviceId => _deviceId;
-  double? get deviceLatitude => _deviceLatitude;
-  double? get deviceLongitude => _deviceLongitude;
-  bool get isPumpRunning => _isPumpRunning;
+  bool      get isLoading        => _isLoading;
+  ThemeMode get themeMode        => _themeMode;
+  String?   get deviceId         => _deviceId;
+  double?   get deviceLatitude   => _deviceLatitude;
+  double?   get deviceLongitude  => _deviceLongitude;
+  bool      get isPumpRunning    => _isPumpRunning;
 
   void setPumpRunning(bool value) {
     _isPumpRunning = value;
     notifyListeners();
   }
 
-  Map<String, dynamic> get latestSensorData => _latestSensorData;
+  Map<String, dynamic>  get latestSensorData => _latestSensorData;
   List<Map<String, dynamic>> get sensorHistory => _sensorHistory;
 
-  // Getters for user profile
-  Map<String, dynamic>? get userProfile => _userProfile;
-  bool get isSaving => _isSaving;
-  String? get saveError => _saveError;
+  Map<String, dynamic>? get userProfile     => _userProfile;
+  bool                  get isSaving        => _isSaving;
+  String?               get saveError       => _saveError;
 
-  // Getter for active crop profile
-  Map<String, dynamic>? get activeCropProfile => _activeCropProfile;
+  Map<String, dynamic>?       get activeCropProfile  => _activeCropProfile;
+  List<Map<String, dynamic>>  get weeklyWaterUsage   => _weeklyWaterUsage;
 
-  // Getter for weekly water usage
-  List<Map<String, dynamic>> get weeklyWaterUsage => _weeklyWaterUsage;
-
-  // Getters for connectivity
-  bool get isDeviceOnline => _isDeviceOnline;
-  bool get isApiConnected => _isApiConnected;
+  bool      get isDeviceOnline => _isDeviceOnline;
+  bool      get isApiConnected => _isApiConnected;
   DateTime? get deviceLastSeen => _deviceLastSeen;
-  String? get deviceName => _deviceName;
+  String?   get deviceName     => _deviceName;
 
-  // True once a device row has been found for the logged-in user.
-  // GoRouter reads this to decide whether to redirect to /link-device.
   bool get hasDevice => _deviceId != null;
 
   // Convenience getters for profile fields
-  String get username => _userProfile?['username'] ?? '';
-  String get tempUnit => _userProfile?['temp_unit'] ?? 'celsius';
-  String get volumeUnit => _userProfile?['volume_unit'] ?? 'litres';
-  String get timezone => _userProfile?['timezone'] ?? 'UTC';
-  bool get pumpAlerts => _userProfile?['pump_alerts'] ?? true;
-  bool get soilMoistureAlerts => _userProfile?['soil_moisture_alerts'] ?? true;
-  bool get weatherAlerts => _userProfile?['weather_alerts'] ?? true;
-  bool get fertigationReminders => _userProfile?['fertigation_reminders'] ?? true;
-  bool get deviceOfflineAlerts => _userProfile?['device_offline_alerts'] ?? true;
-  bool get weeklySummary => _userProfile?['weekly_summary'] ?? false;
+  String get username            => _userProfile?['username']             ?? '';
+  String get tempUnit            => _userProfile?['temp_unit']            ?? 'celsius';
+  String get volumeUnit          => _userProfile?['volume_unit']          ?? 'litres';
+  String get timezone            => _userProfile?['timezone']             ?? 'UTC';
+  bool   get pumpAlerts          => _userProfile?['pump_alerts']          ?? true;
+  bool   get soilMoistureAlerts  => _userProfile?['soil_moisture_alerts'] ?? true;
+  bool   get weatherAlerts       => _userProfile?['weather_alerts']       ?? true;
+  bool   get fertigationReminders => _userProfile?['fertigation_reminders'] ?? true;
+  bool   get deviceOfflineAlerts => _userProfile?['device_offline_alerts'] ?? true;
+  bool   get weeklySummary       => _userProfile?['weekly_summary']       ?? false;
+  String get locationLat         => _userProfile?['location_lat']         ?? '19.0760';
+  String get locationLon         => _userProfile?['location_lon']         ?? '72.8777';
+  String get windUnit            => _userProfile?['wind_unit']            ?? 'km/h';
+  String get precipitationUnit   => _userProfile?['precipitation_unit']   ?? 'mm';
+  String get aqiType             => _userProfile?['aqi_type']             ?? 'us';
 
-  // ── Subscription references (to prevent memory leaks) ─────────────────────
+  // ── Subscriptions ─────────────────────────────────────────────────────────
   late final StreamSubscription<AuthState> _authSub;
   RealtimeChannel? _realtimeChannel;
 
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('theme_mode') ?? 'system';
+    _themeMode = switch (saved) {
+      'light'  => ThemeMode.light,
+      'dark'   => ThemeMode.dark,
+      _        => ThemeMode.system,
+    };
+    notifyListeners();
+  }
+
+  Future<void> updateThemeMode(ThemeMode mode) async {
+    _themeMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('theme_mode', switch (mode) {
+      ThemeMode.light  => 'light',
+      ThemeMode.dark   => 'dark',
+      ThemeMode.system => 'system',
+    });
+  }
+
   AppStateProvider() {
+    Future.microtask(_loadTheme);
     Future.microtask(_init);
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       final event = data.event;
       if (event == AuthChangeEvent.signedIn) {
+        _justLoggedIn = true;
         Future.microtask(_init);
       } else if (event == AuthChangeEvent.signedOut) {
         _clearRealtimeChannel();
-        _deviceId = null;
-        _latestSensorData = {};
-        _sensorHistory = [];
-        _userProfile = null;
+        _deviceId          = null;
+        _latestSensorData  = {};
+        _sensorHistory     = [];
+        _userProfile       = null;
         _activeCropProfile = null;
-        _weeklyWaterUsage = [];
-        _isPumpRunning = false;
-        _isDeviceOnline = false;
-        _isApiConnected = false;
-        _deviceLastSeen = null;
-        _deviceName = null;
-        _deviceLatitude = null;
-        _deviceLongitude = null;
-        _isLoading = false;
+        _weeklyWaterUsage  = [];
+        _isPumpRunning     = false;
+        _isDeviceOnline    = false;
+        _isApiConnected    = false;
+        _deviceLastSeen    = null;
+        _deviceName        = null;
+        _deviceLatitude    = null;
+        _deviceLongitude   = null;
+        _isLoading         = false;
         notifyListeners();
       }
     });
@@ -124,9 +171,7 @@ class AppStateProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> refresh() async {
-    await _init();
-  }
+  Future<void> refresh() async => _init();
 
   Future<void> _init() async {
     _isLoading = true;
@@ -134,13 +179,10 @@ class AppStateProvider extends ChangeNotifier {
 
     final session = Supabase.instance.client.auth.currentSession;
     if (session != null) {
-      // First batch: can run in parallel
       await Future.wait([
         fetchUserProfile(),
         _fetchUserDevices(session.user.id),
       ]);
-
-      // Second batch: all depend on deviceId, can run in parallel
       await Future.wait([
         checkPumpStatus(),
         checkDeviceStatus(),
@@ -165,8 +207,8 @@ class AppStateProvider extends ChangeNotifier {
       debugPrint('[DEBUG] Devices response: $response');
 
       if (response.isNotEmpty) {
-        _deviceId = response[0]['id'];
-        _deviceLatitude = (response[0]['latitude'] as num?)?.toDouble();
+        _deviceId        = response[0]['id'];
+        _deviceLatitude  = (response[0]['latitude']  as num?)?.toDouble();
         _deviceLongitude = (response[0]['longitude'] as num?)?.toDouble();
         debugPrint('[DEBUG] Device found: $_deviceId, lat: $_deviceLatitude, lon: $_deviceLongitude');
         await _subscribeToSensorData();
@@ -182,7 +224,6 @@ class AppStateProvider extends ChangeNotifier {
     if (_deviceId == null) return;
 
     debugPrint('[DEBUG] Subscribing to sensor data for device: $_deviceId');
-
     _clearRealtimeChannel();
 
     final initial = await Supabase.instance.client
@@ -262,6 +303,7 @@ class AppStateProvider extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    await NotificationService.onUserLogout();
     await Supabase.instance.client.auth.signOut();
   }
 
@@ -269,15 +311,12 @@ class AppStateProvider extends ChangeNotifier {
     await _fetchActiveCropProfile();
   }
 
-  // ── Water Usage ──────────────────────────────────────────────────────────
-  // Reads from pump_logs (which exists in your schema) instead of
-  // water_usage (which does not exist).
+  // ── Water Usage ───────────────────────────────────────────────────────────
   Future<void> fetchWeeklyWaterUsage() async {
     if (_deviceId == null) return;
 
     try {
-      final weekAgo = DateTime.now().subtract(const Duration(days: 7));
-
+      final weekAgo  = DateTime.now().subtract(const Duration(days: 7));
       final response = await Supabase.instance.client
           .from('pump_logs')
           .select('pump_on_at, water_used_litres')
@@ -285,22 +324,17 @@ class AppStateProvider extends ChangeNotifier {
           .gte('pump_on_at', weekAgo.toIso8601String())
           .order('pump_on_at', ascending: true);
 
-      // Group by date and sum water used per day
       final Map<String, double> dailyTotals = {};
       for (final row in response) {
-        final date = (row['pump_on_at'] as String).split('T')[0];
+        final date   = (row['pump_on_at'] as String).split('T')[0];
         final litres = (row['water_used_litres'] as num?)?.toDouble() ?? 0.0;
         dailyTotals[date] = (dailyTotals[date] ?? 0.0) + litres;
       }
 
-      // Fill in missing days with 0
       _weeklyWaterUsage = List.generate(7, (i) {
-        final day = weekAgo.add(Duration(days: i));
+        final day  = weekAgo.add(Duration(days: i));
         final date = day.toIso8601String().split('T')[0];
-        return {
-          'date': date,
-          'total_liters': dailyTotals[date] ?? 0.0,
-        };
+        return {'date': date, 'total_liters': dailyTotals[date] ?? 0.0};
       });
 
       notifyListeners();
@@ -310,23 +344,22 @@ class AppStateProvider extends ChangeNotifier {
     }
   }
 
-  // Check if pump is currently running from the latest pump log
+  // ── Pump Status ───────────────────────────────────────────────────────────
   Future<void> checkPumpStatus() async {
     if (_deviceId == null) return;
 
     try {
       final response = await Supabase.instance.client
           .from('pump_logs')
-          .select('pump_on_at, pump_off_at')
+          .select('id, pump_on_at, duration_seconds')
           .eq('device_id', _deviceId!)
           .order('pump_on_at', ascending: false)
           .limit(1)
           .maybeSingle();
 
       if (response != null) {
-        final pumpOffAt = response['pump_off_at'] as String?;
-        // If pump_off_at is null, the pump is still running
-        final isRunning = pumpOffAt == null;
+        final isRunning = response['pump_on_at'] != null &&
+            response['duration_seconds'] == null;
         if (_isPumpRunning != isRunning) {
           _isPumpRunning = isRunning;
           notifyListeners();
@@ -337,8 +370,7 @@ class AppStateProvider extends ChangeNotifier {
     }
   }
 
-  // ── User Profile ─────────────────────────────────────────────────────────
-  // FIX: users table primary key is 'id', not 'user_id'
+  // ── User Profile ──────────────────────────────────────────────────────────
   Future<void> fetchUserProfile() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
@@ -347,21 +379,17 @@ class AppStateProvider extends ChangeNotifier {
       final response = await Supabase.instance.client
           .from('users')
           .select()
-          .eq('id', userId)           // ← FIXED: was 'user_id'
+          .eq('id', userId)
           .maybeSingle();
 
       _userProfile = response;
 
       if (_userProfile == null) {
-        // Row missing — insert it (the trigger should have done this on signup,
-        // but insert manually as a fallback)
-        await Supabase.instance.client.from('users').insert({
-          'id': userId,               // ← FIXED: was 'user_id'
-        });
+        await Supabase.instance.client.from('users').insert({'id': userId});
         _userProfile = await Supabase.instance.client
             .from('users')
             .select()
-            .eq('id', userId)         // ← FIXED: was 'user_id'
+            .eq('id', userId)
             .single();
       }
 
@@ -371,30 +399,40 @@ class AppStateProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> updateUsername(String username) async {
-    await _updateProfileField('username', username);
-  }
+  Future<void> updateUsername(String username) async =>
+      _updateProfileField('username', username);
 
-  Future<void> updateTempUnit(String unit) async {
-    await _updateProfileField('temp_unit', unit);
-  }
+  Future<void> updateTempUnit(String unit) async =>
+      _updateProfileField('temp_unit', unit);
 
-  Future<void> updateVolumeUnit(String unit) async {
-    await _updateProfileField('volume_unit', unit);
-  }
+  Future<void> updateVolumeUnit(String unit) async =>
+      _updateProfileField('volume_unit', unit);
 
-  Future<void> updateTimezone(String tz) async {
-    await _updateProfileField('timezone', tz);
-  }
+  Future<void> updateTimezone(String tz) async =>
+      _updateProfileField('timezone', tz);
 
-  Future<void> updateNotificationSetting(String field, bool value) async {
-    await _updateProfileField(field, value);
-  }
+  Future<void> updateWindUnit(String unit) async =>
+      _updateProfileField('wind_unit', unit);
+
+  Future<void> updatePrecipitationUnit(String unit) async =>
+      _updateProfileField('precipitation_unit', unit);
+
+  Future<void> updateAqiType(String type) async =>
+      _updateProfileField('aqi_type', type);
+
+  Future<void> updateLocationLat(String lat) async =>
+      _updateProfileField('location_lat', lat);
+
+  Future<void> updateLocationLon(String lon) async =>
+      _updateProfileField('location_lon', lon);
+
+  Future<void> updateNotificationSetting(String field, bool value) async =>
+      _updateProfileField(field, value);
 
   Future<void> _updateProfileField(String field, dynamic value) async {
     if (_userProfile == null) return;
 
-    _isSaving = true;
+    _isSaving  = true;
     _saveError = null;
     notifyListeners();
 
@@ -402,13 +440,13 @@ class AppStateProvider extends ChangeNotifier {
       await Supabase.instance.client
           .from('users')
           .update({field: value})
-          .eq('id', Supabase.instance.client.auth.currentUser!.id); // ← FIXED: was 'user_id'
+          .eq('id', Supabase.instance.client.auth.currentUser!.id);
 
       _userProfile![field] = value;
       _isSaving = false;
       notifyListeners();
     } catch (e) {
-      _isSaving = false;
+      _isSaving  = false;
       _saveError = e.toString();
       notifyListeners();
       debugPrint('[DEBUG] Error updating profile field $field: $e');
@@ -416,7 +454,7 @@ class AppStateProvider extends ChangeNotifier {
   }
 
   Future<void> updatePassword(String currentPassword, String newPassword) async {
-    _isSaving = true;
+    _isSaving  = true;
     _saveError = null;
     notifyListeners();
 
@@ -427,10 +465,9 @@ class AppStateProvider extends ChangeNotifier {
       }
 
       await Supabase.instance.client.auth.signInWithPassword(
-        email: currentUser.email!,
+        email:    currentUser.email!,
         password: currentPassword,
       );
-
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(password: newPassword),
       );
@@ -438,12 +475,12 @@ class AppStateProvider extends ChangeNotifier {
       _isSaving = false;
       notifyListeners();
     } on AuthException catch (e) {
-      _isSaving = false;
+      _isSaving  = false;
       _saveError = e.message;
       notifyListeners();
       rethrow;
     } catch (e) {
-      _isSaving = false;
+      _isSaving  = false;
       _saveError = e.toString();
       notifyListeners();
       rethrow;
@@ -458,20 +495,20 @@ class AppStateProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await Supabase.instance.client.rpc('delete_account_cascade', params: {
-        'uid': userId,
-      });
+      await Supabase.instance.client.rpc(
+        'delete_account_cascade',
+        params: {'uid': userId},
+      );
       await signOut();
     } catch (e) {
-      _isSaving = false;
+      _isSaving  = false;
       _saveError = e.toString();
       notifyListeners();
-      debugPrint('[DEBUG] Error deleting account: $e');
       rethrow;
     }
   }
 
-  // ── Device Status ────────────────────────────────────────────────────────
+  // ── Device Status ─────────────────────────────────────────────────────────
   Future<void> checkDeviceStatus() async {
     // Cooldown: don't check more than once every 30 seconds
     if (_lastStatusCheck != null &&
@@ -483,7 +520,7 @@ class AppStateProvider extends ChangeNotifier {
     try {
       await Supabase.instance.client.from('devices').select('id').limit(1);
       _isApiConnected = true;
-    } catch (e) {
+    } catch (_) {
       _isApiConnected = false;
     }
 
@@ -508,21 +545,20 @@ class AppStateProvider extends ChangeNotifier {
 
         if (latest != null) {
           _deviceLastSeen = DateTime.parse(latest['recorded_at']);
-          _isDeviceOnline = DateTime.now().difference(_deviceLastSeen!).inMinutes < 5;
+          _isDeviceOnline =
+              DateTime.now().difference(_deviceLastSeen!).inMinutes < 5;
         } else {
           _isDeviceOnline = false;
           _deviceLastSeen = null;
         }
-      } catch (e) {
+      } catch (_) {
         _isDeviceOnline = false;
-        _deviceName = null;
+        _deviceName     = null;
       }
     }
 
     notifyListeners();
   }
 
-  Future<void> refreshDeviceStatus() async {
-    await checkDeviceStatus();
-  }
+  Future<void> refreshDeviceStatus() async => checkDeviceStatus();
 }

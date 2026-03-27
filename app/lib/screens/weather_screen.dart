@@ -4,48 +4,113 @@
 //   • Open-Meteo forecast     — https://open-meteo.com/en/docs
 //   • Open-Meteo air quality  — https://open-meteo.com/en/docs/air-quality-api
 //
-// Reads LOCATION_LAT / LOCATION_LON from .env.
-// Falls back to Mumbai (19.1014, 72.8962).
-//
-// Screen layout
-//   1. Hero card    — big temp, condition, hi/lo, feels like
-//   2. Hourly strip — next 24 h horizontal scroll
-//   3. 7-day strip
-//   4. Conditions grid
-//        Humidity (square) │ Wind   (circle)
-//        UV index (blob)   │ Precip (square)
-//        AQI      (full-width gradient bar)
-//
-// Performance
-//   • Forecast + AQI run in parallel via Future.wait().
-//   • Static cache (10 min) — survives hot navigation.
-//   • context.select limits rebuilds to tempUnit changes only.
-//   • RepaintBoundary wraps every CustomPaint widget.
-//   • Tile backgrounds are static (no weather-reactive colours).
+// All units (temperature, wind, precipitation) are read from AppStateProvider
+// and applied at render time — no hardcoded unit strings anywhere.
 
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state_provider.dart';
 import '../utils/unit_converter.dart';
 import '../theme.dart';
 
+// ─── Dashed Border Painter ─────────────────────────────────────────────────────
+class DashedBorder extends StatelessWidget {
+  final Widget child;
+  final Color color;
+  final double strokeWidth;
+  final double dashWidth;
+  final double dashSpace;
+  final double borderRadius;
+
+  const DashedBorder({
+    super.key,
+    required this.child,
+    required this.color,
+    this.strokeWidth = 1.5,
+    this.dashWidth = 6,
+    this.dashSpace = 4,
+    this.borderRadius = 12,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _DashedBorderPainter(
+        color: color,
+        strokeWidth: strokeWidth,
+        dashWidth: dashWidth,
+        dashSpace: dashSpace,
+        borderRadius: borderRadius,
+      ),
+      child: child,
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double dashWidth;
+  final double dashSpace;
+  final double borderRadius;
+
+  _DashedBorderPainter({
+    required this.color,
+    required this.strokeWidth,
+    required this.dashWidth,
+    required this.dashSpace,
+    required this.borderRadius,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Radius.circular(borderRadius),
+    );
+
+    final path = Path()..addRRect(rrect);
+    final dashPath = Path();
+
+    for (final metric in path.computeMetrics()) {
+      double distance = 0;
+      while (distance < metric.length) {
+        dashPath.addPath(
+          metric.extractPath(distance, distance + dashWidth),
+          Offset.zero,
+        );
+        distance += dashWidth + dashSpace;
+      }
+    }
+
+    canvas.drawPath(dashPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 // ─── Endpoints ────────────────────────────────────────────────────────────────
 
 const _kForecast = 'https://api.open-meteo.com/v1/forecast';
-const _kAirQual  = 'https://air-quality-api.open-meteo.com/v1/air-quality';
-const _kTimeout  = Duration(seconds: 12);
+const _kAirQual = 'https://air-quality-api.open-meteo.com/v1/air-quality';
+const _kTimeout = Duration(seconds: 12);
 
 // ─── WMO weather code helpers ─────────────────────────────────────────────────
 
 String _wmoLabel(int c) {
-  if (c == 0)  return 'Clear Sky';
-  if (c <= 2)  return 'Partly Cloudy';
-  if (c == 3)  return 'Overcast';
+  if (c == 0) return 'Clear Sky';
+  if (c <= 2) return 'Partly Cloudy';
+  if (c == 3) return 'Overcast';
   if (c <= 48) return 'Foggy';
   if (c <= 55) return 'Drizzle';
   if (c <= 65) return 'Rain';
@@ -55,39 +120,36 @@ String _wmoLabel(int c) {
   return 'Unknown';
 }
 
-PhosphorIconData _wmoIcon(int c, {bool night = false}) {
-  if (c == 0) {
-    return night
-        ? PhosphorIcons.moon(PhosphorIconsStyle.fill)
-        : PhosphorIcons.sun(PhosphorIconsStyle.fill);
-  }
+String _wmoSvg(int c, {bool night = false}) {
+  const folder = 'light';
+  const prefix = 'assets/set-6';
+  if (c == 0) return '$prefix/$folder/${night ? 'clear_night' : 'sunny'}.svg';
   if (c <= 2) {
-    return night
-        ? PhosphorIcons.cloudMoon(PhosphorIconsStyle.fill)
-        : PhosphorIcons.cloudSun(PhosphorIconsStyle.fill);
+    return '$prefix/$folder/${night ? 'mostly_cloudy_night' : 'mostly_sunny'}.svg';
   }
-  if (c == 3) return PhosphorIcons.cloud(PhosphorIconsStyle.fill);
-  if (c <= 48) return PhosphorIcons.cloudFog(PhosphorIconsStyle.fill);
-  if (c <= 65) return PhosphorIcons.cloudRain(PhosphorIconsStyle.fill);
-  if (c <= 75) return PhosphorIcons.snowflake(PhosphorIconsStyle.fill);
-  if (c <= 82) return PhosphorIcons.cloudRain(PhosphorIconsStyle.fill);
-  return PhosphorIcons.cloudLightning(PhosphorIconsStyle.fill);
+  if (c == 3) return '$prefix/$folder/cloudy.svg';
+  if (c <= 48) return '$prefix/$folder/windy.svg';
+  if (c <= 55) return '$prefix/$folder/drizzle.svg';
+  if (c <= 65) return '$prefix/$folder/heavy_rain.svg';
+  if (c <= 75) return '$prefix/$folder/icy.svg';
+  if (c <= 82) return '$prefix/$folder/sleet_hail.svg';
+  return '$prefix/$folder/strong_thunderstorms.svg';
 }
 
 // ─── UV ───────────────────────────────────────────────────────────────────────
 
 String _uvLabel(double uv) {
-  if (uv < 3)  return 'Low';
-  if (uv < 6)  return 'Moderate';
-  if (uv < 8)  return 'High';
+  if (uv < 3) return 'Low';
+  if (uv < 6) return 'Moderate';
+  if (uv < 8) return 'High';
   if (uv < 11) return 'Very High';
   return 'Extreme';
 }
 
 Color _uvColor(double uv) {
-  if (uv < 3)  return const Color(0xFF3B6D11);
-  if (uv < 6)  return const Color(0xFF8B6914);
-  if (uv < 8)  return const Color(0xFFB45309);
+  if (uv < 3) return const Color(0xFF3B6D11);
+  if (uv < 6) return const Color(0xFF8B6914);
+  if (uv < 8) return const Color(0xFFB45309);
   if (uv < 11) return const Color(0xFF993556);
   return const Color(0xFF534AB7);
 }
@@ -95,8 +157,8 @@ Color _uvColor(double uv) {
 // ─── AQI ──────────────────────────────────────────────────────────────────────
 
 String _aqiLabel(int aqi) {
-  if (aqi < 0)    return 'No data';
-  if (aqi <= 50)  return 'Good';
+  if (aqi < 0) return 'No data';
+  if (aqi <= 50) return 'Good';
   if (aqi <= 100) return 'Moderate';
   if (aqi <= 150) return 'Unhealthy for sensitive';
   if (aqi <= 200) return 'Unhealthy';
@@ -105,8 +167,8 @@ String _aqiLabel(int aqi) {
 }
 
 Color _aqiColor(int aqi) {
-  if (aqi < 0)    return Colors.grey;
-  if (aqi <= 50)  return const Color(0xFF3B6D11);
+  if (aqi < 0) return Colors.grey;
+  if (aqi <= 50) return const Color(0xFF3B6D11);
   if (aqi <= 100) return const Color(0xFF8B6914);
   if (aqi <= 150) return const Color(0xFFB45309);
   if (aqi <= 200) return const Color(0xFF993556);
@@ -114,7 +176,31 @@ Color _aqiColor(int aqi) {
   return const Color(0xFF7E0023);
 }
 
-// ─── Wind ─────────────────────────────────────────────────────────────────────
+// ─── Wind unit conversion (Open-Meteo returns km/h by default) ───────────────
+
+/// Converts km/h to the user's preferred wind unit.
+String _formatWindKmh(double kmh, String unit) {
+  switch (unit) {
+    case 'mph':
+      return '${(kmh * 0.621371).toStringAsFixed(0)} mph';
+    case 'm/s':
+      return '${(kmh / 3.6).toStringAsFixed(1)} m/s';
+    case 'knots':
+      return '${(kmh * 0.539957).toStringAsFixed(0)} kn';
+    default: // 'km/h'
+      return '${kmh.toStringAsFixed(0)} km/h';
+  }
+}
+
+// ─── Precipitation unit conversion (Open-Meteo returns mm) ───────────────────
+
+/// Converts mm to the user's preferred precipitation unit.
+String _formatPrecipMm(double mm, String unit) {
+  if (unit == 'in') return '${(mm / 25.4).toStringAsFixed(2)} in';
+  return '${_formatMm(mm)} mm';
+}
+
+// ─── Wind direction ───────────────────────────────────────────────────────────
 
 String _compassLabel(int deg) {
   const d = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -125,45 +211,56 @@ String _compassLabel(int deg) {
 
 String _dayLabel(String iso) {
   final d = DateTime.parse(iso);
-  const w = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+  const w = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
   return w[d.weekday - 1];
 }
 
 String _todayFormatted() {
   final d = DateTime.now();
-  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const W = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  const M = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  const W = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
   return '${W[d.weekday - 1]}, ${M[d.month - 1]} ${d.day}';
 }
 
-// Returns hour label like "3 PM".
 String _hourLabel(DateTime dt) {
-  final h    = dt.hour;
+  final h = dt.hour;
   final ampm = h >= 12 ? 'PM' : 'AM';
-  final h12  = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+  final h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
   return '$h12 $ampm';
 }
 
-// First hourly index whose time >= current hour (local).
 int _nowHourIdx(List<String> times) {
-  final cutoff = DateTime.now();
-  final trunc  = DateTime(cutoff.year, cutoff.month, cutoff.day, cutoff.hour);
+  final now = DateTime.now();
+  final cutoff = DateTime(now.year, now.month, now.day, now.hour);
   for (int i = 0; i < times.length; i++) {
-    try { if (!DateTime.parse(times[i]).isBefore(trunc)) return i; }
-    catch (_) {}
+    try {
+      if (!DateTime.parse(times[i]).isBefore(cutoff)) return i;
+    } catch (_) {}
   }
   return 0;
 }
 
-// True if [hour] is between sunrise and sunset (ISO strings).
-bool _isDayHour(DateTime hour, String sunriseIso, String sunsetIso) {
-  try {
-    return hour.isAfter(DateTime.parse(sunriseIso)) &&
-           hour.isBefore(DateTime.parse(sunsetIso));
-  } catch (_) { return true; }
-}
-
-// Magnus formula dew-point approximation.
 double _dewPoint(double tempC, double rh) {
   const a = 17.27, b = 237.7;
   final alpha = a * tempC / (b + tempC) + math.log(rh / 100.0);
@@ -185,19 +282,16 @@ class WeatherScreen extends StatefulWidget {
   State<WeatherScreen> createState() => _WeatherScreenState();
 }
 
-class _WeatherScreenState extends State<WeatherScreen> {
-  // Static cache — survives navigation within the same app session.
+class _WeatherScreenState extends State<WeatherScreen>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   static Map<String, dynamic>? _cache;
-  static DateTime?             _cacheAt;
+  static DateTime? _cacheAt;
 
-  bool                   _loading = true;
-  String?                _error;
-  Map<String, dynamic>?  _data;
-
-  static double get _lat =>
-      double.tryParse(dotenv.env['LOCATION_LAT'] ?? '') ?? 19.1014;
-  static double get _lon =>
-      double.tryParse(dotenv.env['LOCATION_LON'] ?? '') ?? 72.8962;
+  bool _loading = true;
+  String? _error;
+  Map<String, dynamic>? _data;
 
   @override
   void initState() {
@@ -208,148 +302,188 @@ class _WeatherScreenState extends State<WeatherScreen> {
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
   Future<void> _load({bool force = false}) async {
-    // Serve from cache if fresh and not a forced refresh.
-    if (!force && _cache != null && _cacheAt != null &&
+    if (!force &&
+        _cache != null &&
+        _cacheAt != null &&
         DateTime.now().difference(_cacheAt!).inMinutes < 10) {
-      if (mounted) setState(() { _data = _cache; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _data = _cache;
+          _loading = false;
+        });
+      }
       return;
     }
 
-    if (mounted) setState(() { _loading = true; _error = null; });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
 
     try {
-      // Run both network calls concurrently.
-      final results = await Future.wait([
-        _callForecast(),
-        _callAirQuality(),  // returns null on failure — non-critical
-      ]);
+      final results = await Future.wait([_callForecast(), _callAirQuality()]);
 
-      final parsed = _parse(
-        results[0] as Map<String, dynamic>,
-        results[1],
-      );
+      final parsed = _parse(results[0] as Map<String, dynamic>, results[1]);
 
-      _cache   = parsed;
+      _cache = parsed;
       _cacheAt = DateTime.now();
-      if (mounted) setState(() { _data = parsed; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _data = parsed;
+          _loading = false;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
     }
   }
 
   Future<Map<String, dynamic>> _callForecast() async {
-    final uri = Uri.parse(_kForecast).replace(queryParameters: {
-      'latitude':  _lat.toString(),
-      'longitude': _lon.toString(),
-      'current': [
-        'temperature_2m', 'apparent_temperature', 'relative_humidity_2m',
-        'weather_code',   'wind_speed_10m',        'wind_gusts_10m',
-        'wind_direction_10m', 'is_day',
-      ].join(','),
-      'hourly': [
-        'temperature_2m', 'weather_code', 'precipitation_probability',
-      ].join(','),
-      'daily': [
-        'weather_code',          'temperature_2m_max',       'temperature_2m_min',
-        'precipitation_probability_max', 'precipitation_sum', 'uv_index_max',
-        'sunrise',               'sunset',
-      ].join(','),
-      'timezone':      'auto',
-      'forecast_days': '7',
-    });
+    final provider = context.read<AppStateProvider>();
+    final lat = provider.locationLat;
+    final lon = provider.locationLon;
+    final uri = Uri.parse(_kForecast).replace(
+      queryParameters: {
+        'latitude': lat,
+        'longitude': lon,
+        'current': [
+          'temperature_2m', 'apparent_temperature', 'relative_humidity_2m',
+          'weather_code', 'wind_speed_10m', 'wind_gusts_10m',
+          'wind_direction_10m', 'is_day',
+          'uv_index', // real-time UV — separate from uv_index_max (daily peak)
+        ].join(','),
+        'hourly': [
+          'temperature_2m',
+          'weather_code',
+          'precipitation_probability',
+        ].join(','),
+        'daily': [
+          'weather_code',
+          'temperature_2m_max',
+          'temperature_2m_min',
+          'precipitation_probability_max',
+          'precipitation_sum',
+          'uv_index_max',
+          'sunrise',
+          'sunset',
+        ].join(','),
+        'timezone': 'auto',
+        'forecast_days': '7',
+      },
+    );
     final r = await http.get(uri).timeout(_kTimeout);
-    if (r.statusCode != 200) throw Exception('Forecast API error ${r.statusCode}');
+    if (r.statusCode != 200) {
+      throw Exception('Forecast API error ${r.statusCode}');
+    }
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
-  // Returns null on any failure so the screen still loads without AQI.
   Future<Map<String, dynamic>?> _callAirQuality() async {
     try {
-      final uri = Uri.parse(_kAirQual).replace(queryParameters: {
-        'latitude':       _lat.toString(),
-        'longitude':      _lon.toString(),
-        'current':        'us_aqi',
-        'timezone':       'auto',
-        'forecast_hours': '1',
-      });
+      final provider = context.read<AppStateProvider>();
+      final lat = provider.locationLat;
+      final lon = provider.locationLon;
+      final uri = Uri.parse(_kAirQual).replace(
+        queryParameters: {
+          'latitude': lat,
+          'longitude': lon,
+          'current': 'us_aqi',
+          'timezone': 'auto',
+          'forecast_hours': '1',
+        },
+      );
       final r = await http.get(uri).timeout(_kTimeout);
       if (r.statusCode != 200) return null;
       return jsonDecode(r.body) as Map<String, dynamic>;
-    } catch (_) { return null; }
+    } catch (_) {
+      return null;
+    }
   }
 
   // ── Parse ─────────────────────────────────────────────────────────────────
+  // All raw values stored in SI/base units (°C, km/h, mm).
+  // Unit conversion happens at render time using user preferences.
 
   Map<String, dynamic> _parse(
     Map<String, dynamic> fc,
     Map<String, dynamic>? aq,
   ) {
-    final cur    = (fc['current'] ?? {}) as Map<String, dynamic>;
-    final daily  = (fc['daily']   ?? {}) as Map<String, dynamic>;
-    final hourly = (fc['hourly']  ?? {}) as Map<String, dynamic>;
+    final cur = (fc['current'] ?? {}) as Map<String, dynamic>;
+    final daily = (fc['daily'] ?? {}) as Map<String, dynamic>;
+    final hourly = (fc['hourly'] ?? {}) as Map<String, dynamic>;
 
-    // Helper — safely extract numbers with a default.
     double dbl(Map m, String k, [double def = 0.0]) =>
         (m[k] as num?)?.toDouble() ?? def;
-    int    intv(Map m, String k, [int def = 0]) =>
-        (m[k] as num?)?.toInt() ?? def;
+    int intv(Map m, String k, [int def = 0]) => (m[k] as num?)?.toInt() ?? def;
 
-    // Daily lists
     final List<String> dTimes = List<String>.from(daily['time'] ?? []);
     List<T> dList<T>(String k, T Function(num) fn) =>
         ((daily[k] ?? []) as List).map((v) => fn((v as num?) ?? 0)).toList();
 
-    final dCodes   = dList<int>('weather_code',                  (n) => n.toInt());
-    final dMax     = dList<double>('temperature_2m_max',         (n) => n.toDouble());
-    final dMin     = dList<double>('temperature_2m_min',         (n) => n.toDouble());
-    final dPop     = dList<int>('precipitation_probability_max', (n) => n.toInt());
-    final dRain    = dList<double>('precipitation_sum',          (n) => n.toDouble());
-    final dUV      = dList<double>('uv_index_max',               (n) => n.toDouble());
+    final dCodes = dList<int>('weather_code', (n) => n.toInt());
+    final dMax = dList<double>('temperature_2m_max', (n) => n.toDouble());
+    final dMin = dList<double>('temperature_2m_min', (n) => n.toDouble());
+    final dPop = dList<int>('precipitation_probability_max', (n) => n.toInt());
+    final dRain = dList<double>('precipitation_sum', (n) => n.toDouble());
+    final dUV = dList<double>('uv_index_max', (n) => n.toDouble());
     final sunrises = List<String>.from(daily['sunrise'] ?? []);
-    final sunsets  = List<String>.from(daily['sunset']  ?? []);
+    final sunsets = List<String>.from(daily['sunset'] ?? []);
 
-    // Hourly lists
     final hTimes = List<String>.from(hourly['time'] ?? []);
     final hTemps = ((hourly['temperature_2m'] ?? []) as List)
-        .map((v) => (v as num?)?.toDouble() ?? 0.0).toList();
+        .map((v) => (v as num?)?.toDouble() ?? 0.0)
+        .toList();
     final hCodes = ((hourly['weather_code'] ?? []) as List)
-        .map((v) => (v as num?)?.toInt() ?? 0).toList();
+        .map((v) => (v as num?)?.toInt() ?? 0)
+        .toList();
     final hPrecp = ((hourly['precipitation_probability'] ?? []) as List)
-        .map((v) => (v as num?)?.toInt() ?? 0).toList();
+        .map((v) => (v as num?)?.toInt() ?? 0)
+        .toList();
 
     final todayPop = dPop.isNotEmpty ? dPop[0] : 0;
 
     return {
-      // Current conditions
-      'temp':       dbl(cur, 'temperature_2m'),
-      'feels':      dbl(cur, 'apparent_temperature'),
-      'humidity':   intv(cur, 'relative_humidity_2m'),
-      'code':       intv(cur, 'weather_code'),
-      'wind_speed': dbl(cur, 'wind_speed_10m'),
-      'wind_gusts': dbl(cur, 'wind_gusts_10m'),
-      'wind_dir':   intv(cur, 'wind_direction_10m'),
-      'is_day':     intv(cur, 'is_day', 1),
-      // Today summary (index 0 of daily)
-      'today_max':  dMax.isNotEmpty  ? dMax[0]     : 0.0,
-      'today_min':  dMin.isNotEmpty  ? dMin[0]     : 0.0,
-      'today_pop':  todayPop,
-      'today_rain': dRain.isNotEmpty ? dRain[0]    : 0.0,
-      'today_uv':   dUV.isNotEmpty   ? dUV[0]      : 0.0,
-      'sunrise':    sunrises.isNotEmpty ? sunrises[0] : '',
-      'sunset':     sunsets.isNotEmpty  ? sunsets[0]  : '',
-      'will_rain':  todayPop > 50,
-      // AQI — -1 means no data
+      'temp': dbl(cur, 'temperature_2m'), // °C
+      'feels': dbl(cur, 'apparent_temperature'), // °C
+      'humidity': intv(cur, 'relative_humidity_2m'),
+      'code': intv(cur, 'weather_code'),
+      'wind_speed': dbl(cur, 'wind_speed_10m'), // km/h
+      'wind_gusts': dbl(cur, 'wind_gusts_10m'), // km/h
+      'wind_dir': intv(cur, 'wind_direction_10m'),
+      'is_day': intv(cur, 'is_day', 1),
+      'today_max': dMax.isNotEmpty ? dMax[0] : 0.0, // °C
+      'today_min': dMin.isNotEmpty ? dMin[0] : 0.0, // °C
+      'today_pop': todayPop,
+      'today_rain': dRain.isNotEmpty ? dRain[0] : 0.0, // mm
+      // Use real-time uv_index from current block.
+      // Fall back to uv_index_max (daily peak) only if current is unavailable.
+      'uv_current': dbl(cur, 'uv_index', -1),
+      'today_uv': dUV.isNotEmpty
+          ? dUV[0]
+          : 0.0, // daily peak (kept for reference)
+      'sunrise': sunrises.isNotEmpty ? sunrises[0] : '',
+      'sunset': sunsets.isNotEmpty ? sunsets[0] : '',
+      'will_rain': todayPop > 50,
       'aqi': (aq?['current']?['us_aqi'] as num?)?.toInt() ?? -1,
-      // 7-day forecast
-      'forecast7': List.generate(dTimes.length, (i) => <String, dynamic>{
-        'date': dTimes[i],
-        'code': i < dCodes.length ? dCodes[i] : 0,
-        'max':  i < dMax.length   ? dMax[i]   : 0.0,
-        'min':  i < dMin.length   ? dMin[i]   : 0.0,
-      }),
-      // Hourly arrays (raw — sliced later)
+      'forecast7': List.generate(
+        dTimes.length,
+        (i) => <String, dynamic>{
+          'date': dTimes[i],
+          'code': i < dCodes.length ? dCodes[i] : 0,
+          'max': i < dMax.length ? dMax[i] : 0.0, // °C
+          'min': i < dMin.length ? dMin[i] : 0.0, // °C
+          'pop': i < dPop.length ? dPop[i] : 0,
+        },
+      ),
       'h_times': hTimes,
-      'h_temps': hTemps,
+      'h_temps': hTemps, // °C
       'h_codes': hCodes,
       'h_precp': hPrecp,
     };
@@ -359,25 +493,39 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Only rebuild when tempUnit changes — not on every sensor push.
-    final tempUnit = context.select<AppStateProvider, String>((p) => p.tempUnit);
+    super.build(context);
+    final colors = Theme.of(context).colorScheme;
+    // Rebuild only when one of these three unit prefs changes.
+    final tempUnit = context.select<AppStateProvider, String>(
+      (p) => p.tempUnit,
+    );
+    final windUnit = context.select<AppStateProvider, String>(
+      (p) => p.windUnit,
+    );
+    final precipUnit = context.select<AppStateProvider, String>(
+      (p) => p.precipitationUnit,
+    );
 
     return Scaffold(
+      backgroundColor: colors.surfaceContainerHighest,
       body: RefreshIndicator(
         color: AppTheme.teal,
         onRefresh: () => _load(force: true),
-        child: _buildBody(context, tempUnit),
+        child: _buildBody(context, tempUnit, windUnit, precipUnit),
       ),
     );
   }
 
-  Widget _buildBody(BuildContext context, String tempUnit) {
+  Widget _buildBody(
+    BuildContext context,
+    String tempUnit,
+    String windUnit,
+    String precipUnit,
+  ) {
     final colors = Theme.of(context).colorScheme;
 
-    // ── Loading ───────────────────────────────────────────────────────────
     if (_loading) return const Center(child: CircularProgressIndicator());
 
-    // ── Error ─────────────────────────────────────────────────────────────
     if (_error != null) {
       return Center(
         child: Padding(
@@ -385,10 +533,13 @@ class _WeatherScreenState extends State<WeatherScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(PhosphorIcons.cloudSlash(), size: 48, color: colors.error),
+              Icon(Icons.cloud_off, size: 48, color: colors.error),
               const SizedBox(height: 16),
-              Text(_error!, textAlign: TextAlign.center,
-                  style: TextStyle(color: colors.error, fontFamily: 'Poppins')),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: colors.error, fontFamily: 'Poppins'),
+              ),
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: () => _load(force: true),
@@ -401,139 +552,201 @@ class _WeatherScreenState extends State<WeatherScreen> {
       );
     }
 
-    // ── Unpack ────────────────────────────────────────────────────────────
     final w = _data!;
 
-    final double temp      = (w['temp']       as num).toDouble();
-    final double feels     = (w['feels']      as num).toDouble();
-    final int    humidity  = (w['humidity']   as num).toInt();
-    final int    code      = (w['code']       as num).toInt();
-    final double windSpeed = (w['wind_speed'] as num).toDouble();
-    final double windGusts = (w['wind_gusts'] as num).toDouble();
-    final int    windDir   = (w['wind_dir']   as num).toInt();
-    final bool   isDay     = (w['is_day']     as num).toInt() == 1;
-    final double todayRain = (w['today_rain'] as num).toDouble();
-    final double todayUV   = (w['today_uv']   as num).toDouble();
-    final int    aqi       = (w['aqi']        as num).toInt();
-    final bool   willRain  = w['will_rain']   as bool;
-    final String sunrise   = w['sunrise']     as String;
-    final String sunset    = w['sunset']      as String;
+    final double temp = (w['temp'] as num).toDouble();
+    final double feels = (w['feels'] as num).toDouble();
+    final int humidity = (w['humidity'] as num).toInt();
+    final int code = (w['code'] as num).toInt();
+    final double windSpeed = (w['wind_speed'] as num).toDouble(); // km/h
+    final double windGusts = (w['wind_gusts'] as num).toDouble(); // km/h
+    final int windDir = (w['wind_dir'] as num).toInt();
+    final bool isDay = (w['is_day'] as num).toInt() == 1;
+    final double todayRain = (w['today_rain'] as num).toDouble(); // mm
+    // Real-time UV from current block; fall back to daily peak if -1.
+    final double uvCurrent = (w['uv_current'] as num).toDouble();
+    final double uvDayMax = (w['today_uv'] as num).toDouble();
+    final double todayUV = uvCurrent >= 0 ? uvCurrent : uvDayMax;
+    final int aqi = (w['aqi'] as num).toInt();
+    final bool willRain = w['will_rain'] as bool;
+    final String sunrise = w['sunrise'] as String;
+    final String sunset = w['sunset'] as String;
 
-    final f7     = List<Map<String, dynamic>>.from(w['forecast7'] as List);
+    final f7 = List<Map<String, dynamic>>.from(w['forecast7'] as List);
     final hTimes = List<String>.from(w['h_times'] as List);
-    final hTemps = List<double>.from((w['h_temps'] as List).map((v) => (v as num).toDouble()));
-    final hCodes = List<int>.from((w['h_codes']   as List).map((v) => (v as num).toInt()));
-    final hPrecp = List<int>.from((w['h_precp']   as List).map((v) => (v as num).toInt()));
+    final hTemps = List<double>.from(
+      (w['h_temps'] as List).map((v) => (v as num).toDouble()),
+    );
+    final hCodes = List<int>.from(
+      (w['h_codes'] as List).map((v) => (v as num).toInt()),
+    );
+    final hPrecp = List<int>.from(
+      (w['h_precp'] as List).map((v) => (v as num).toInt()),
+    );
 
     final startIdx = _nowHourIdx(hTimes);
 
-    // ── Main content ──────────────────────────────────────────────────────
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
       children: [
-
-        // Title
-        Text('Weather Forecast',
-            style: Theme.of(context).textTheme.headlineMedium
-                ?.copyWith(fontFamily: 'Poppins', fontSize: 28)),
-        const SizedBox(height: 16),
-
         // 1 — Hero card
         _HeroCard(
-          date:      _todayFormatted(),
-          temp:      UnitConverter.formatTemp(temp, tempUnit),
-          maxTemp:   UnitConverter.formatTemp((w['today_max'] as num).toDouble(), tempUnit),
-          minTemp:   UnitConverter.formatTemp((w['today_min'] as num).toDouble(), tempUnit),
-          feels:     UnitConverter.formatTemp(feels, tempUnit),
+          date: _todayFormatted(),
+          temp: UnitConverter.formatTemp(temp, tempUnit),
+          maxTemp: UnitConverter.formatTemp(
+            (w['today_max'] as num).toDouble(),
+            tempUnit,
+          ),
+          minTemp: UnitConverter.formatTemp(
+            (w['today_min'] as num).toDouble(),
+            tempUnit,
+          ),
+          feels: UnitConverter.formatTemp(feels, tempUnit),
           condition: _wmoLabel(code),
-          icon:      _wmoIcon(code, night: !isDay),
-          willRain:  willRain,
-          colors:    colors,
+          code: code,
+          isDay: isDay,
+          willRain: willRain,
+          colors: colors,
         ),
         const SizedBox(height: 24),
 
         // 2 — Hourly strip
-        _label('HOURLY FORECAST', colors),
-        const SizedBox(height: 10),
         _HourlyStrip(
-          times:    hTimes,
-          temps:    hTemps,
-          codes:    hCodes,
-          precps:   hPrecp,
-          start:    startIdx,
-          sunrise:  sunrise,
-          sunset:   sunset,
+          times: hTimes,
+          temps: hTemps, // °C — converted inside the widget
+          codes: hCodes,
+          precps: hPrecp,
+          start: startIdx,
+          sunrise: sunrise,
+          sunset: sunset,
           tempUnit: tempUnit,
-          colors:   colors,
+          colors: colors,
         ),
         const SizedBox(height: 24),
 
-        // 3 — 7-day strip
-        _label('7-DAY FORECAST', colors),
-        const SizedBox(height: 10),
-        Row(
-          children: List.generate(f7.length, (i) => Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(
-                left:  i == 0 ? 0 : 4,
-                right: i == f7.length - 1 ? 0 : 4,
+        // 3 — Daily forecast
+        Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: colors.outline.withValues(alpha: 0.25)),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label('DAILY FORECAST', colors),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 180,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: f7.length,
+                  itemBuilder: (context, i) {
+                    final f = f7[i];
+                    final dateStr = f['date'] as String;
+                    final dt = DateTime.parse(dateStr);
+                    final isToday = i == 0;
+
+                    final dayStr = isToday
+                        ? 'Today'
+                        : _dayLabel(dateStr).substring(0, 3);
+                    final dateFormatted =
+                        '${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: SizedBox(
+                        width: 72,
+                        child: _DayCard(
+                          day: dayStr,
+                          date: dateFormatted,
+                          code: f['code'] as int,
+                          max: UnitConverter.formatTemp(
+                            f['max'] as double,
+                            tempUnit,
+                          ),
+                          min: UnitConverter.formatTemp(
+                            f['min'] as double,
+                            tempUnit,
+                          ),
+                          pop: f['pop'] as int,
+                          today: isToday,
+                          colors: colors,
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
-              child: _DayCard(
-                day:     _dayLabel(f7[i]['date'] as String),
-                icon:    _wmoIcon(f7[i]['code'] as int, night: false),
-                max:     '${(f7[i]['max'] as double).toStringAsFixed(0)}°',
-                min:     '${(f7[i]['min'] as double).toStringAsFixed(0)}°',
-                today:   i == 0,
-                colors:  colors,
-              ),
-            ),
-          )),
+            ],
+          ),
         ),
         const SizedBox(height: 24),
 
         // 4 — Conditions grid
-        _label('CONDITIONS', colors),
-        const SizedBox(height: 10),
-
-        // Row 1: Humidity | Wind
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: _HumidityTile(
-              humidity: humidity, tempC: temp, colors: colors)),
-          const SizedBox(width: 12),
-          Expanded(child: _WindTile(
-              speed: windSpeed, gusts: windGusts, dirDeg: windDir, colors: colors)),
-        ]),
-        const SizedBox(height: 12),
-
-        // Row 2: UV index (blob) | Precipitation (square)
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: _UVTile(uvIndex: todayUV, colors: colors)),
-          const SizedBox(width: 12),
-          Expanded(child: _PrecipTile(amountMm: todayRain, colors: colors)),
-        ]),
-        const SizedBox(height: 12),
-
-        // Row 3: AQI full-width
-        _AQITile(aqi: aqi, colors: colors),
-
-        // Attribution (Open-Meteo requires this for the free tier)
-        const SizedBox(height: 20),
-        const Center(
-          child: Text('Weather data by Open-Meteo.com',
-              style: TextStyle(
-                fontSize: 11, fontFamily: 'Poppins',
-                color: Color(0x801B4332))),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _HumidityTile(
+                humidity: humidity,
+                tempC: temp,
+                colors: colors,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _WindTile(
+                speedKmh: windSpeed,
+                gustsKmh: windGusts,
+                dirDeg: windDir,
+                windUnit: windUnit, // from provider
+                colors: colors,
+              ),
+            ),
+          ],
         ),
+        const SizedBox(height: 12),
+
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _UVTile(
+                uvNow: todayUV,
+                uvDayMax: uvDayMax,
+                colors: colors,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _PrecipTile(
+                amountMm: todayRain,
+                precipUnit: precipUnit, // from provider
+                colors: colors,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        _AQITile(aqi: aqi, colors: colors),
       ],
     );
   }
 
-  // Small section label builder
-  static Widget _label(String text, ColorScheme colors) => Text(text,
-      style: TextStyle(
-        fontSize: 11, fontWeight: FontWeight.bold,
-        letterSpacing: 1.1, fontFamily: 'Poppins',
-        color: colors.onSurface));
+  static Widget _label(String text, ColorScheme colors) => Text(
+    text,
+    style: TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.bold,
+      letterSpacing: 1.1,
+      fontFamily: 'Poppins',
+      color: colors.onSurface,
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -542,7 +755,8 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
 class _HeroCard extends StatelessWidget {
   final String date, temp, maxTemp, minTemp, feels, condition;
-  final PhosphorIconData icon;
+  final int code;
+  final bool isDay;
   final bool willRain;
   final ColorScheme colors;
 
@@ -553,7 +767,8 @@ class _HeroCard extends StatelessWidget {
     required this.minTemp,
     required this.feels,
     required this.condition,
-    required this.icon,
+    required this.code,
+    required this.isDay,
     required this.willRain,
     required this.colors,
   });
@@ -566,75 +781,113 @@ class _HeroCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: colors.outline.withValues(alpha: 0.3)),
       ),
-      child: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Left block
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(date, style: TextStyle(
-                        fontSize: 13, fontFamily: 'Poppins',
-                        color: colors.onSurfaceVariant)),
-                    const SizedBox(height: 8),
-                    Text(temp, style: TextStyle(
-                        fontSize: 52, fontWeight: FontWeight.bold,
-                        fontFamily: 'Poppins', color: colors.onSurface,
-                        height: 1.0)),
-                    const SizedBox(height: 4),
-                    Text('↑$maxTemp  ↓$minTemp', style: TextStyle(
-                        fontSize: 13, fontFamily: 'Poppins',
-                        color: colors.onSurfaceVariant)),
-                    const SizedBox(height: 2),
-                    Text('Feels like $feels', style: TextStyle(
-                        fontSize: 13, fontFamily: 'Poppins',
-                        color: colors.onSurfaceVariant)),
-                    const SizedBox(height: 6),
-                    Text(condition, style: TextStyle(
-                        fontSize: 16, fontFamily: 'Poppins',
-                        fontWeight: FontWeight.w600, color: colors.onSurface)),
-                  ],
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        date,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontFamily: 'Poppins',
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        temp,
+                        style: TextStyle(
+                          fontSize: 52,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Poppins',
+                          color: colors.onSurface,
+                          height: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '↑$maxTemp  ↓$minTemp',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontFamily: 'Poppins',
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Feels like $feels',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontFamily: 'Poppins',
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        condition,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontFamily: 'Poppins',
+                          fontWeight: FontWeight.w600,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: SvgPicture.asset(
+                    _wmoSvg(code, night: !isDay),
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (willRain)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              decoration: BoxDecoration(
+                color: colors.secondaryContainer.withValues(alpha: 0.7),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
                 ),
               ),
-              // Right: large icon
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Icon(icon, size: 72,
-                    color: colors.primary.withValues(alpha: 0.85)),
-              ),
-            ],
-          ),
-        ),
-        // Rain warning bar
-        if (willRain)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            decoration: BoxDecoration(
-              color: colors.secondaryContainer.withValues(alpha: 0.7),
-              borderRadius: const BorderRadius.only(
-                bottomLeft:  Radius.circular(20),
-                bottomRight: Radius.circular(20),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.water_drop,
+                    size: 15,
+                    color: colors.onSecondaryContainer,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Rain expected today — automated irrigation paused.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'Poppins',
+                        color: colors.onSecondaryContainer,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: Row(children: [
-              Icon(PhosphorIcons.cloudRain(PhosphorIconsStyle.fill),
-                  size: 15, color: colors.onSecondaryContainer),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Rain expected today — automated irrigation paused.',
-                  style: TextStyle(fontSize: 12, fontFamily: 'Poppins',
-                      color: colors.onSecondaryContainer),
-                ),
-              ),
-            ]),
-          ),
-      ]),
+        ],
+      ),
     );
   }
 }
@@ -645,11 +898,11 @@ class _HeroCard extends StatelessWidget {
 
 class _HourlyStrip extends StatelessWidget {
   final List<String> times;
-  final List<double> temps;
-  final List<int>    codes, precps;
-  final int          start;
-  final String       sunrise, sunset, tempUnit;
-  final ColorScheme  colors;
+  final List<double> temps; // °C
+  final List<int> codes, precps;
+  final int start;
+  final String sunrise, sunset, tempUnit;
+  final ColorScheme colors;
 
   const _HourlyStrip({
     required this.times,
@@ -668,43 +921,61 @@ class _HourlyStrip extends StatelessWidget {
     final count = (times.length - start).clamp(0, 24);
 
     return Container(
-      height: 96,
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: colors.outline.withValues(alpha: 0.25)),
       ),
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        physics: const BouncingScrollPhysics(),
-        itemCount: count,
-        itemBuilder: (context, i) {
-          final idx  = start + i;
-          final tStr = idx < times.length ? times[idx] : '';
-          final tVal = idx < temps.length ? temps[idx] : 0.0;
-          final cVal = idx < codes.length ? codes[idx] : 0;
-          final pVal = idx < precps.length ? precps[idx] : 0;
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'HOURLY FORECAST',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.1,
+              fontFamily: 'Poppins',
+              color: colors.onSurface,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 100,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+              physics: const BouncingScrollPhysics(),
+              itemCount: count,
+              itemBuilder: (context, i) {
+                final idx = start + i;
+                final tStr = idx < times.length ? times[idx] : '';
+                final tVal = idx < temps.length ? temps[idx] : 0.0; // °C
+                final cVal = idx < codes.length ? codes[idx] : 0;
+                final pVal = idx < precps.length ? precps[idx] : 0;
 
-          DateTime? dt;
-          bool day = true;
-          try {
-            dt  = DateTime.parse(tStr);
-            day = _isDayHour(dt, sunrise, sunset);
-          } catch (_) {}
+                DateTime? dt;
+                try {
+                  dt = DateTime.parse(tStr);
+                } catch (_) {}
 
-          final tempStr = tempUnit == 'fahrenheit'
-              ? '${UnitConverter.celsiusToFahrenheit(tVal).round()}°'
-              : '${tVal.round()}°';
+                // Convert °C to user's preferred temperature unit.
+                final tempStr = tempUnit == 'fahrenheit'
+                    ? '${UnitConverter.celsiusToFahrenheit(tVal).round()}°'
+                    : '${tVal.round()}°';
 
-          return _HourItem(
-            label:   i == 0 ? 'Now' : (dt != null ? _hourLabel(dt) : '--'),
-            icon:    _wmoIcon(cVal, night: !day),
-            temp:    tempStr,
-            precip:  pVal,
-            colors:  colors,
-          );
-        },
+                return _HourItem(
+                  label: i == 0 ? 'Now' : (dt != null ? _hourLabel(dt) : '--'),
+                  code: cVal,
+                  temp: tempStr,
+                  precip: pVal,
+                  colors: colors,
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -712,13 +983,13 @@ class _HourlyStrip extends StatelessWidget {
 
 class _HourItem extends StatelessWidget {
   final String label, temp;
-  final PhosphorIconData icon;
+  final int code;
   final int precip;
   final ColorScheme colors;
 
   const _HourItem({
     required this.label,
-    required this.icon,
+    required this.code,
     required this.temp,
     required this.precip,
     required this.colors,
@@ -726,26 +997,50 @@ class _HourItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 58,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          Text(label,
-              style: TextStyle(fontSize: 10, fontFamily: 'Poppins',
-                  fontWeight: FontWeight.bold, color: colors.onSurface)),
-          Icon(icon, size: 20, color: colors.primary),
-          Text(temp,
-              style: TextStyle(fontSize: 13, fontFamily: 'Poppins',
-                  fontWeight: FontWeight.bold, color: colors.onSurface)),
-          // Rain prob — hidden when 0 to keep layout tidy.
-          Text(
-            precip > 0 ? '$precip%' : '',
-            style: const TextStyle(
-              fontSize: 10, fontFamily: 'Poppins',
-              color: Color(0xFF185FA5), fontWeight: FontWeight.bold),
-          ),
-        ],
+    final bgColor = colors.surfaceContainerHighest.withValues(alpha: 0.35);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Container(
+        width: 52,
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colors.outline.withValues(alpha: 0.25)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.bold,
+                color: colors.onSurface,
+              ),
+            ),
+            SvgPicture.asset(_wmoSvg(code), width: 24, height: 24),
+            Text(
+              temp,
+              style: TextStyle(
+                fontSize: 13,
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.bold,
+                color: colors.onSurface,
+              ),
+            ),
+            Text(
+              precip > 0 ? '$precip%' : '',
+              style: TextStyle(
+                fontSize: 10,
+                fontFamily: 'Manrope',
+                color: colors.tertiary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -756,14 +1051,16 @@ class _HourItem extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _DayCard extends StatelessWidget {
-  final String day, max, min;
-  final PhosphorIconData icon;
+  final String day, date, max, min;
+  final int code, pop;
   final bool today;
   final ColorScheme colors;
 
   const _DayCard({
     required this.day,
-    required this.icon,
+    required this.date,
+    required this.code,
+    required this.pop,
     required this.max,
     required this.min,
     required this.today,
@@ -772,37 +1069,76 @@ class _DayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bgColor = colors.surfaceContainerHighest.withValues(alpha: 0.35);
+    final borderColor = today
+        ? const Color(0xFF1B1C1A)
+        : colors.outline.withValues(alpha: 0.25);
+    final borderWidth = today ? 2.5 : 1.0;
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       decoration: BoxDecoration(
-        color: today
-            ? colors.primary.withValues(alpha: 0.12)
-            : colors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: today
-              ? colors.primary.withValues(alpha: 0.45)
-              : colors.outline.withValues(alpha: 0.2),
-        ),
+        color: bgColor,
+        borderRadius: BorderRadius.circular(40),
+        border: Border.all(color: borderColor, width: borderWidth),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          Text(day,
-              style: TextStyle(
-                fontSize: 10, fontWeight: FontWeight.bold,
-                letterSpacing: 0.5, fontFamily: 'Poppins',
-                color: today ? colors.primary : colors.onSurfaceVariant)),
-          const SizedBox(height: 6),
-          Icon(icon, size: 22,
-              color: today ? colors.primary : colors.onSurfaceVariant),
-          const SizedBox(height: 6),
-          Text(max, style: TextStyle(
-              fontSize: 13, fontWeight: FontWeight.bold,
-              fontFamily: 'Poppins', color: colors.onSurface)),
-          Text(min, style: TextStyle(
-              fontSize: 11, fontFamily: 'Poppins',
-              color: colors.onSurfaceVariant)),
+          Text(
+            max,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Manrope',
+              color: colors.onSurface,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            min,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'Manrope',
+              color: colors.onSurfaceVariant,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+
+          const SizedBox(height: 4),
+          SvgPicture.asset(_wmoSvg(code), width: 28, height: 28),
+          const SizedBox(height: 4),
+
+          Text(
+            '$pop%',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Manrope',
+              color: Color(0xFF3B6D11),
+            ),
+          ),
+
+          const SizedBox(height: 4),
+          Text(
+            day,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Manrope',
+              color: colors.onSurface,
+            ),
+          ),
+          Text(
+            date,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'Manrope',
+              color: colors.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );
@@ -810,7 +1146,7 @@ class _DayCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Condition tile shared decoration helper
+// Shared tile decoration
 // ─────────────────────────────────────────────────────────────────────────────
 
 BoxDecoration _squareDeco(ColorScheme c) => BoxDecoration(
@@ -820,14 +1156,13 @@ BoxDecoration _squareDeco(ColorScheme c) => BoxDecoration(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tile 1 — Humidity  (square)
+// Tile 1 — Humidity
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HumidityTile extends StatelessWidget {
   final int humidity;
-  final double tempC;           // used for dew-point calculation
+  final double tempC;
   final ColorScheme colors;
-
   static const _blue = Color(0xFF185FA5);
 
   const _HumidityTile({
@@ -845,71 +1180,74 @@ class _HumidityTile extends StatelessWidget {
       child: Container(
         decoration: _squareDeco(colors),
         clipBehavior: Clip.hardEdge,
-        child: Stack(children: [
-          // Water fill background — RepaintBoundary isolates its repaints.
-          Positioned.fill(
-            child: RepaintBoundary(
-              child: CustomPaint(
-                painter: _WaterFillPainter(
-                  fill:      humidity / 100.0,
-                  fillColor: _blue.withValues(alpha: 0.10),
-                  waveColor: _blue.withValues(alpha: 0.16),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _WaterFillPainter(
+                    fill: humidity / 100.0,
+                    fillColor: _blue.withValues(alpha: 0.10),
+                    waveColor: _blue.withValues(alpha: 0.16),
+                  ),
                 ),
               ),
             ),
-          ),
-          // Foreground content
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _TileLabel(icon: PhosphorIcons.drop(PhosphorIconsStyle.fill),
-                    text: 'Humidity', color: _blue),
-                const Spacer(),
-                Text('$humidity%',
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '$humidity%',
                     style: TextStyle(
-                      fontSize: 40, fontWeight: FontWeight.bold,
-                      fontFamily: 'Poppins', color: colors.onSurface,
-                      height: 1.0)),
-                const SizedBox(height: 4),
-                Text('Dew point  ${dew.toStringAsFixed(0)}°',
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      color: colors.onSurface,
+                      height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Dew point  ${dew.toStringAsFixed(0)}°',
                     style: TextStyle(
-                      fontSize: 12, fontFamily: 'Poppins',
-                      color: colors.onSurface.withValues(alpha: 0.55))),
-              ],
+                      fontSize: 11,
+                      fontFamily: 'Poppins',
+                      color: colors.onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tile 2 — Wind  (circle with rotated inner shape)
+// Tile 2 — Wind (converted from km/h using windUnit)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _WindTile extends StatelessWidget {
-  final double speed;
-  final double gusts;
+  final double speedKmh; // raw km/h from Open-Meteo
+  final double gustsKmh; // raw km/h from Open-Meteo
   final int dirDeg;
+  final String windUnit; // 'km/h' | 'mph' | 'm/s' | 'knots'
   final ColorScheme colors;
-
   static const _green = Color(0xFF2E7D32);
 
   const _WindTile({
-    required this.speed,
-    required this.gusts,
+    required this.speedKmh,
+    required this.gustsKmh,
     required this.dirDeg,
+    required this.windUnit,
     required this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Arrow pointing dynamically towards the wind direction.
-    final angleRad = dirDeg * math.pi / 180.0;
-
     return AspectRatio(
       aspectRatio: 1,
       child: Container(
@@ -920,36 +1258,83 @@ class _WindTile extends StatelessWidget {
         ),
         clipBehavior: Clip.hardEdge,
         padding: const EdgeInsets.all(14),
-        child: Column(
+        child: Stack(
           children: [
-            _TileLabel(icon: PhosphorIcons.wind(), text: 'Wind', color: _green),
-            const Spacer(),
-            // Dynamic inner rotated container
-            Transform.rotate(
-              angle: angleRad,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _green.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  PhosphorIcons.navigationArrow(PhosphorIconsStyle.fill),
-                  size: 24, color: _green,
+            // Background image (static, reduced opacity)
+            Positioned.fill(
+              child: ClipOval(
+                child: ColorFiltered(
+                  colorFilter: ColorFilter.mode(
+                    Colors.white.withValues(alpha: 0.85),
+                    BlendMode.srcOver,
+                  ),
+                  child: Transform.scale(
+                    scale: 1.4,
+                    child: Image.asset(
+                      'assets/icon/compass2.jpg',
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-            Text('${speed.toStringAsFixed(0)} km/h',
-                style: TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.bold,
-                  fontFamily: 'Poppins', color: colors.onSurface,
-                  height: 1.1)),
-            Text(_compassLabel(dirDeg),
-                style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.bold,
-                  fontFamily: 'Poppins', color: colors.onSurface.withValues(alpha: 0.6))),
-            const Spacer(),
+            // Foreground content
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Center(
+                  child: Text(
+                    'Wind',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      color: _green,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // Speed converted to user's preferred unit.
+                Center(
+                  child: Text(
+                    _formatWindKmh(speedKmh, windUnit),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      color: colors.onSurface,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+                // Gusts also converted.
+                Center(
+                  child: Text(
+                    'Gusts ${_formatWindKmh(gustsKmh, windUnit)}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'Poppins',
+                      color: colors.onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Text(
+                    _compassLabel(dirDeg),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      color: colors.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ],
         ),
       ),
@@ -958,19 +1343,24 @@ class _WindTile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tile 3 — UV Index (blob)
+// Tile 3 — UV Index
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _UVTile extends StatelessWidget {
-  final double uvIndex;
+  final double uvNow; // real-time UV from current block
+  final double uvDayMax; // daily peak from uv_index_max
   final ColorScheme colors;
 
-  const _UVTile({required this.uvIndex, required this.colors});
+  const _UVTile({
+    required this.uvNow,
+    required this.uvDayMax,
+    required this.colors,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final accent = _uvColor(uvIndex);
-    final label = _uvLabel(uvIndex);
+    final accent = _uvColor(uvNow);
+    final label = _uvLabel(uvNow);
 
     return AspectRatio(
       aspectRatio: 1,
@@ -982,19 +1372,84 @@ class _UVTile extends StatelessWidget {
         ),
         clipBehavior: Clip.hardEdge,
         padding: const EdgeInsets.all(14),
-        child: Column(
+        child: Stack(
           children: [
-            _TileLabel(icon: PhosphorIcons.sun(PhosphorIconsStyle.fill), text: 'UV Index', color: accent),
-            const Spacer(),
-            Text(uvIndex.toStringAsFixed(1),
-                style: TextStyle(
-                  fontSize: 28, fontWeight: FontWeight.bold,
-                  fontFamily: 'Poppins', color: colors.onSurface, height: 1.1)),
-            Text(label,
-                style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.bold,
-                  fontFamily: 'Poppins', color: accent)),
-            const Spacer(),
+            // Background image (static, reduced opacity)
+            Positioned.fill(
+              child: ClipOval(
+                child: ColorFiltered(
+                  colorFilter: ColorFilter.mode(
+                    Colors.white.withValues(alpha: 0.45),
+                    BlendMode.srcOver,
+                  ),
+                  child: Transform.scale(
+                    scale: 1.4,
+                    child: Image.asset(
+                      'assets/icon/UV.jpg',
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Foreground content
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Center(
+                  child: Text(
+                    'UV Index',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      color: accent,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // Real-time current UV value
+                Center(
+                  child: Text(
+                    uvNow.toStringAsFixed(1),
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      color: colors.onSurface,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      color: accent,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Daily peak for context
+                Center(
+                  child: Text(
+                    'Peak ${uvDayMax.toStringAsFixed(1)} today',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'Poppins',
+                      color: colors.onSurface.withValues(alpha: 0.45),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ],
         ),
       ),
@@ -1003,16 +1458,20 @@ class _UVTile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tile 4 — Precipitation probability (square, mm amount)
+// Tile 4 — Precipitation (converted from mm using precipUnit)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PrecipTile extends StatelessWidget {
-  final double amountMm;
+  final double amountMm; // raw mm from Open-Meteo
+  final String precipUnit; // 'mm' | 'in'
   final ColorScheme colors;
-
   static const _blue = Color(0xFF185FA5);
 
-  const _PrecipTile({required this.amountMm, required this.colors});
+  const _PrecipTile({
+    required this.amountMm,
+    required this.precipUnit,
+    required this.colors,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1022,24 +1481,33 @@ class _PrecipTile extends StatelessWidget {
         decoration: _squareDeco(colors),
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _TileLabel(
-              icon:  PhosphorIcons.cloudRain(PhosphorIconsStyle.fill),
-              text:  'Precipitation',
+              icon: Icons.water_drop,
+              text: 'Precipitation',
               color: _blue,
             ),
             const Spacer(),
-            Text('${_formatMm(amountMm)} mm',
-                style: TextStyle(
-                  fontSize: 28, fontWeight: FontWeight.bold,
-                  fontFamily: 'Poppins', color: colors.onSurface)),
+            // Amount converted from mm to user's preferred unit.
+            Text(
+              _formatPrecipMm(amountMm, precipUnit),
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Poppins',
+                color: colors.onSurface,
+              ),
+            ),
             const SizedBox(height: 4),
             Text(
               amountMm > 0 ? 'Rainfall expected' : 'No rain today',
               style: TextStyle(
-                fontSize: 12, fontFamily: 'Poppins',
-                color: colors.onSurface.withValues(alpha: 0.6)),
+                fontSize: 12,
+                fontFamily: 'Poppins',
+                color: colors.onSurface.withValues(alpha: 0.6),
+              ),
             ),
           ],
         ),
@@ -1049,22 +1517,21 @@ class _PrecipTile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tile 5 — AQI  (full-width gradient bar)
+// Tile 5 — AQI
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _AQITile extends StatelessWidget {
   final int aqi;
   final ColorScheme colors;
-
   static const _purple = Color(0xFF6B21A8);
 
   const _AQITile({required this.aqi, required this.colors});
 
   @override
   Widget build(BuildContext context) {
-    final noData   = aqi < 0;
-    final label    = _aqiLabel(aqi);
-    final accent   = _aqiColor(aqi);
+    final noData = aqi < 0;
+    final label = _aqiLabel(aqi);
+    final accent = _aqiColor(aqi);
     final fraction = noData ? 0.0 : (aqi.clamp(0, 500) / 500.0);
 
     return Container(
@@ -1077,59 +1544,87 @@ class _AQITile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _TileLabel(icon: PhosphorIcons.wind(), text: 'Air Quality Index',
-                  color: _purple),
+              _TileLabel(
+                icon: Icons.masks,
+                text: 'Air Quality Index',
+                color: _purple,
+              ),
               const Spacer(),
-              // Big AQI number
-              Text(noData ? '--' : aqi.toString(),
-                  style: TextStyle(
-                    fontSize: 28, fontWeight: FontWeight.bold,
-                    fontFamily: 'Poppins', color: colors.onSurface,
-                    height: 1.0)),
+              Text(
+                noData ? '--' : aqi.toString(),
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Poppins',
+                  color: colors.onSurface,
+                  height: 1.0,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
-          // Category label
-          Text(label,
-              style: TextStyle(
-                fontSize: 13, fontFamily: 'Poppins',
-                fontWeight: FontWeight.bold, color: accent)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontFamily: 'Poppins',
+              fontWeight: FontWeight.bold,
+              color: accent,
+            ),
+          ),
           const SizedBox(height: 14),
-          // Gradient bar — RepaintBoundary prevents cascade repaints.
           RepaintBoundary(
             child: SizedBox(
               height: 10,
               child: CustomPaint(
                 size: const Size(double.infinity, 10),
                 painter: _AQIBarPainter(
-                  fraction:      fraction,
-                  dotColor:      colors.surface,
+                  fraction: fraction,
+                  dotColor: colors.surface,
                   dotBorderColor: colors.onSurface.withValues(alpha: 0.5),
                 ),
               ),
             ),
           ),
           const SizedBox(height: 8),
-          // Scale labels
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Good',
-                  style: TextStyle(fontSize: 10, fontFamily: 'Poppins',
-                      color: Color(0xFF3B6D11))),
-              Text('Moderate',
-                  style: TextStyle(fontSize: 10, fontFamily: 'Poppins',
-                      color: Color(0xFF8B6914))),
-              Text('Unhealthy',
-                  style: TextStyle(fontSize: 10, fontFamily: 'Poppins',
-                      color: Color(0xFF993556))),
-              Text('Hazardous',
-                  style: TextStyle(fontSize: 10, fontFamily: 'Poppins',
-                      color: Color(0xFF7E0023))),
+              Text(
+                'Good',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontFamily: 'Poppins',
+                  color: Color(0xFF3B6D11),
+                ),
+              ),
+              Text(
+                'Moderate',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontFamily: 'Poppins',
+                  color: Color(0xFF8B6914),
+                ),
+              ),
+              Text(
+                'Unhealthy',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontFamily: 'Poppins',
+                  color: Color(0xFF993556),
+                ),
+              ),
+              Text(
+                'Hazardous',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontFamily: 'Poppins',
+                  color: Color(0xFF7E0023),
+                ),
+              ),
             ],
           ),
         ],
@@ -1139,15 +1634,19 @@ class _AQITile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shared tile label row (icon + text)
+// Shared tile label
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _TileLabel extends StatelessWidget {
-  final PhosphorIconData icon;
+  final IconData icon;
   final String text;
   final Color color;
 
-  const _TileLabel({required this.icon, required this.text, required this.color});
+  const _TileLabel({
+    required this.icon,
+    required this.text,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1157,11 +1656,16 @@ class _TileLabel extends StatelessWidget {
         Icon(icon, size: 14, color: color),
         const SizedBox(width: 5),
         Flexible(
-          child: Text(text,
-              style: TextStyle(
-                fontSize: 12, fontFamily: 'Poppins',
-                fontWeight: FontWeight.bold, color: color),
-              overflow: TextOverflow.ellipsis),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'Poppins',
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ],
     );
@@ -1172,11 +1676,10 @@ class _TileLabel extends StatelessWidget {
 // CustomPainters
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Water fill — flat rect rising from the bottom with a single wavy crest.
 class _WaterFillPainter extends CustomPainter {
-  final double fill;         // 0.0 – 1.0
-  final Color  fillColor;
-  final Color  waveColor;
+  final double fill;
+  final Color fillColor;
+  final Color waveColor;
 
   const _WaterFillPainter({
     required this.fill,
@@ -1187,21 +1690,19 @@ class _WaterFillPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final top = size.height * (1.0 - fill);
-
-    // Base fill
     canvas.drawRect(
       Rect.fromLTRB(0, top, size.width, size.height),
       Paint()..color = fillColor,
     );
-
-    // Wave crest on top of the fill (three bezier bumps)
     if (top > 8 && fill > 0.05) {
       final step = size.width / 3;
       final path = Path()..moveTo(0, top);
       for (int i = 0; i < 3; i++) {
         path.quadraticBezierTo(
-          (i + 0.5) * step, top - 6,
-          (i + 1.0) * step, top,
+          (i + 0.5) * step,
+          top - 6,
+          (i + 1.0) * step,
+          top,
         );
       }
       path.lineTo(size.width, size.height);
@@ -1216,19 +1717,18 @@ class _WaterFillPainter extends CustomPainter {
       o.fill != fill || o.fillColor != fillColor;
 }
 
-/// AQI gradient bar with a white dot indicator.
 class _AQIBarPainter extends CustomPainter {
-  final double fraction;         // 0.0 – 1.0
-  final Color  dotColor;
-  final Color  dotBorderColor;
+  final double fraction;
+  final Color dotColor;
+  final Color dotBorderColor;
 
   static const _stops = [
-    Color(0xFF00E400), // Good
-    Color(0xFFFFFF00), // Moderate
-    Color(0xFFFF7E00), // Unhealthy for sensitive
-    Color(0xFFFF0000), // Unhealthy
-    Color(0xFF8F3F97), // Very Unhealthy
-    Color(0xFF7E0023), // Hazardous
+    Color(0xFF00E400),
+    Color(0xFFFFFF00),
+    Color(0xFFFF7E00),
+    Color(0xFFFF0000),
+    Color(0xFF8F3F97),
+    Color(0xFF7E0023),
   ];
 
   const _AQIBarPainter({
@@ -1240,25 +1740,26 @@ class _AQIBarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final barRect = Rect.fromLTWH(0, 0, size.width, size.height);
-    final rr      = RRect.fromRectAndRadius(barRect, const Radius.circular(999));
+    final rr = RRect.fromRectAndRadius(barRect, const Radius.circular(999));
+    canvas.drawRRect(
+      rr,
+      Paint()..shader = LinearGradient(colors: _stops).createShader(barRect),
+    );
 
-    // Gradient bar
-    final shader  = LinearGradient(colors: _stops).createShader(barRect);
-    canvas.drawRRect(rr, Paint()..shader = shader);
-
-    // Dot indicator
     final dotX = (fraction * size.width).clamp(
-      size.height / 2, size.width - size.height / 2);
+      size.height / 2,
+      size.width - size.height / 2,
+    );
     final dotY = size.height / 2;
     final dotR = size.height / 2 + 2;
-
-    canvas.drawCircle(Offset(dotX, dotY), dotR,
-        Paint()..color = dotBorderColor);
-    canvas.drawCircle(Offset(dotX, dotY), dotR - 2,
-        Paint()..color = dotColor);
+    canvas.drawCircle(
+      Offset(dotX, dotY),
+      dotR,
+      Paint()..color = dotBorderColor,
+    );
+    canvas.drawCircle(Offset(dotX, dotY), dotR - 2, Paint()..color = dotColor);
   }
 
   @override
-  bool shouldRepaint(_AQIBarPainter o) =>
-      o.fraction != fraction;
+  bool shouldRepaint(_AQIBarPainter o) => o.fraction != fraction;
 }

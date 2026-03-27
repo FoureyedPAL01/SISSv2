@@ -1,49 +1,50 @@
 // lib/screens/crop_profiles_screen.dart
 //
-// Changes from previous version:
-//  1. Supports multiple profiles — each user can create, edit, delete profiles.
-//  2. The "active" profile is whichever one devices.crop_profile_id points to.
-//     Tapping "Set Active" on any card updates that FK.
-//  3. Editing/creating uses a bottom sheet that contains the same
-//     slider + fields from the original screen — look and feel unchanged.
-//  4. plant_name field added (needed by Stage 2 Perenual lookup).
-//  5. The FAB at bottom-right opens the sheet for a new profile.
+// GlobalKey-free design:
+//   • _ProfileSheet uses NO Form / GlobalKey.
+//   • Validation is done inline in _save() by inspecting controller text.
+//   • This prevents "multiple widgets used the same GlobalKey" crashes that
+//     occur when the sheet is opened more than once per session.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme.dart';
+import '../utils/date_helpers.dart';
 import '../providers/app_state_provider.dart';
 
-// ── Simple data model for one row from crop_profiles ─────────────────────────
+// ── Data model ────────────────────────────────────────────────────────────────
 class _Profile {
-  final int       id;
-  String          name;
-  String          plantName;        // stored in plant_name column; used by Perenual
-  double          minMoisture;
-  DateTime?       perenualCachedAt; // null = no Perenual data fetched yet
+  final int id;
+  final String name;
+  final String plantName;
+  final double minMoisture;
+  final DateTime? perenualCachedAt;
+  final Map<String, dynamic>? perenualData;
 
-  _Profile({
+  const _Profile({
     required this.id,
     required this.name,
     required this.plantName,
     required this.minMoisture,
     this.perenualCachedAt,
+    this.perenualData,
   });
 
   factory _Profile.fromMap(Map<String, dynamic> m) => _Profile(
-    id:               m['id'] as int,
-    name:             (m['name'] as String?) ?? 'Unnamed Profile',
-    plantName:        (m['plant_name'] as String?) ?? '',
-    minMoisture:      (m['min_moisture'] as num).toDouble(),
-    // Supabase returns timestamps as ISO-8601 strings; parse to DateTime.
+    id: m['id'] as int,
+    name: (m['name'] as String?) ?? 'Unnamed Profile',
+    plantName: (m['plant_name'] as String?) ?? '',
+    minMoisture: (m['min_moisture'] as num?)?.toDouble() ?? 30.0,
     perenualCachedAt: m['perenual_cached_at'] != null
         ? DateTime.parse(m['perenual_cached_at'] as String).toLocal()
         : null,
+    perenualData: m['perenual_data'] as Map<String, dynamic>?,
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Screen
 // ─────────────────────────────────────────────────────────────────────────────
 class CropProfilesScreen extends StatefulWidget {
   const CropProfilesScreen({super.key});
@@ -52,28 +53,37 @@ class CropProfilesScreen extends StatefulWidget {
   State<CropProfilesScreen> createState() => _CropProfilesScreenState();
 }
 
-class _CropProfilesScreenState extends State<CropProfilesScreen> {
-  List<_Profile> _profiles    = [];
-  int?           _activeId;              // crop_profile_id on the device row
-  bool           _loading     = true;
-  final Set<int> _fetchingIds = {};      // profiles currently being fetched
+class _CropProfilesScreenState extends State<CropProfilesScreen>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
 
-  // ── Load all profiles + which one is active ───────────────────────────────
+  List<_Profile> _profiles = [];
+  int? _activeId;
+  bool _loading = true;
+  final Set<int> _fetchingIds = {};
+
+  // ── Load ──────────────────────────────────────────────────────────────────
   Future<void> _load() async {
     setState(() => _loading = true);
     final deviceId = context.read<AppStateProvider>().deviceId;
-    final userId   = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) { setState(() => _loading = false); return; }
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) {
+      setState(() => _loading = false);
+      return;
+    }
 
     try {
-      // All profiles belonging to this user
-      final rows = await Supabase.instance.client
-          .from('crop_profiles')
-          .select('id, name, plant_name, min_moisture, perenual_cached_at')
-          .eq('user_id', userId)
-          .order('id', ascending: true) as List<dynamic>;
+      final rows =
+          await Supabase.instance.client
+                  .from('crop_profiles')
+                  .select(
+                    'id, name, plant_name, min_moisture, perenual_cached_at, perenual_data',
+                  )
+                  .eq('user_id', userId)
+                  .order('id', ascending: true)
+              as List<dynamic>;
 
-      // Active profile id from the device row
       int? activeId;
       if (deviceId != null) {
         final dev = await Supabase.instance.client
@@ -90,7 +100,7 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
               .map((r) => _Profile.fromMap(r as Map<String, dynamic>))
               .toList();
           _activeId = activeId;
-          _loading  = false;
+          _loading = false;
         });
       }
     } catch (e) {
@@ -105,7 +115,7 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
-  // ── Set a profile as active on the device ────────────────────────────────
+  // ── Set active ───────────────────────────────────────────────────────────
   Future<void> _setActive(int profileId) async {
     final deviceId = context.read<AppStateProvider>().deviceId;
     if (deviceId == null) return;
@@ -113,39 +123,28 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
         .from('devices')
         .update({'crop_profile_id': profileId})
         .eq('id', deviceId);
+    if (!mounted) return;
     setState(() => _activeId = profileId);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:  const Text('Active profile updated.'),
-          behavior: SnackBarBehavior.floating,
-          margin:   const EdgeInsets.all(20),
-          shape:    RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(_snackBar('Active profile updated.'));
   }
 
-  // ── Delete a profile (with confirm dialog) ────────────────────────────────
+  // ── Delete ───────────────────────────────────────────────────────────────
   Future<void> _delete(_Profile profile) async {
     final provider = context.read<AppStateProvider>();
-    
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title:   const Text('Delete Profile'),
+        title: const Text('Delete Profile'),
         content: Text('Delete "${profile.name}"? This cannot be undone.'),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.of(context, rootNavigator: true).pop(false),
+            onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.of(context, rootNavigator: true).pop(true),
+            onPressed: () => Navigator.of(context).pop(true),
             child: Text(
               'Delete',
               style: TextStyle(color: Theme.of(context).colorScheme.error),
@@ -156,61 +155,78 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
     );
     if (confirmed != true) return;
 
-    final deviceIdToCheck = provider.deviceId;
-
     await Supabase.instance.client
         .from('crop_profiles')
         .delete()
         .eq('id', profile.id);
 
-    // If the deleted profile was active, clear the device FK
-    if (_activeId == profile.id && deviceIdToCheck != null) {
-      await Supabase.instance.client
-          .from('devices')
-          .update({'crop_profile_id': null})
-          .eq('id', deviceIdToCheck);
+    if (_activeId == profile.id) {
+      final deviceId = provider.deviceId;
+      if (deviceId != null) {
+        await Supabase.instance.client
+            .from('devices')
+            .update({'crop_profile_id': null})
+            .eq('id', deviceId);
+      }
     }
-
     await _load();
   }
 
-  // ── Open bottom sheet for create or edit ─────────────────────────────────
-  // Passing null for [profile] means "create new".
+  // ── Open sheet (create or edit) ──────────────────────────────────────────
+  // Each call pushes a fresh widget instance onto the sheet stack.
+  // Because _ProfileSheet holds no GlobalKey, multiple opens are safe.
   void _openSheet({_Profile? profile}) {
     showModalBottomSheet(
-      context:            context,
-      isScrollControlled: true, // lets sheet resize when keyboard appears
-      builder: (_) => _ProfileSheet(
-        existing: profile,
-        onSaved:  _load,
-      ),
+      context: context,
+      isScrollControlled: true,
+      // useSafeArea keeps the sheet above the system navigation bar.
+      useSafeArea: true,
+      builder: (_) => _ProfileSheet(existing: profile, onSaved: _load),
     );
   }
 
-  // ── Fetch Perenual plant data for one profile ─────────────────────────────
-  // The button on the card calls this. Shows a per-card loading indicator
-  // while the request is in flight.
-  //
-  // STAGE 2 — swap the Future.delayed below with the real service call:
-  //   import '../services/perenual_service.dart';
-  //   await PerenualService.fetchPlantData(profile.id);
-  // The rest of the method (setState, _load, error handling) stays exactly
-  // as-is — no other changes to this screen are needed for Stage 2.
+  // ── Perenual fetch ───────────────────────────────────────────────────────
   Future<void> _fetchData(_Profile profile) async {
-    if (_fetchingIds.contains(profile.id)) return; // already in flight
+    if (_fetchingIds.contains(profile.id)) return;
+    if (profile.plantName.isEmpty) return;
     setState(() => _fetchingIds.add(profile.id));
+
     try {
-      // ── STAGE 2: replace the line below ──────────────────────────────────
-      await Future.delayed(const Duration(milliseconds: 300)); // placeholder
-      // ─────────────────────────────────────────────────────────────────────
-      await _load(); // reload list to pick up updated perenual_cached_at
+      final session = Supabase.instance.client.auth.currentSession;
+      final accessToken = session?.accessToken;
+      if (accessToken == null) throw Exception('Not logged in');
+
+      final response = await Supabase.instance.client.functions.invoke(
+        'perenual-lookup',
+        body: {'profile_id': profile.id, 'plant_name': profile.plantName},
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
+
+      final body = response.data as Map<String, dynamic>?;
+      if (body == null || body['ok'] != true) {
+        throw Exception(body?['error'] ?? 'Unknown error from Perenual lookup');
+      }
+
+      await _load();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          _snackBar(
+            body['source'] == 'cache'
+                ? 'Plant data loaded from cache.'
+                : 'Plant data fetched successfully.',
+          ),
+        );
+      }
     } catch (e) {
+      debugPrint('[Perenual] fetch error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:  Text('Failed to fetch plant data: $e'),
+            content: Text('Failed to fetch plant data: $e'),
             behavior: SnackBarBehavior.floating,
-            margin:   const EdgeInsets.all(20),
+            margin: const EdgeInsets.all(20),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -219,20 +235,27 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
     }
   }
 
+  SnackBar _snackBar(String message) => SnackBar(
+    content: Text(message),
+    behavior: SnackBarBehavior.floating,
+    margin: const EdgeInsets.all(20),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+  );
 
+  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final colors    = Theme.of(context).colorScheme;
+    super.build(context);
+    final colors = Theme.of(context).colorScheme;
     final appColors = Theme.of(context).extension<AppColors>()!;
 
     return Scaffold(
-      // FAB opens the sheet for a new profile
+      backgroundColor: colors.surfaceContainerHighest,
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openSheet(),
-        tooltip:   'Add Profile',
-        child:     Icon(PhosphorIcons.plus()),
+        tooltip: 'Add Profile',
+        child: Icon(Icons.add),
       ),
-
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -240,41 +263,24 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                 children: [
-                  // ── Page title ──────────────────────────────────────────
-                  Text(
-                    'Crop Profiles',
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineMedium
-                        ?.copyWith(fontFamily: 'Poppins', fontSize: 24),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Create profiles for each plant. '
-                    'Set one as Active to use it for irrigation & fertigation.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── Empty state ─────────────────────────────────────────
                   if (_profiles.isEmpty)
                     _EmptyState(onAdd: () => _openSheet())
                   else
                     ...List.generate(_profiles.length, (i) {
-                      final p        = _profiles[i];
+                      final p = _profiles[i];
                       final isActive = p.id == _activeId;
                       return _ProfileCard(
-                        profile:     p,
-                        isActive:    isActive,
-                        colors:      colors,
-                        appColors:   appColors,
+                        profile: p,
+                        isActive: isActive,
+                        colors: colors,
+                        appColors: appColors,
                         onSetActive: isActive ? null : () => _setActive(p.id),
-                        onEdit:      () => _openSheet(profile: p),
-                        onDelete:    () => _delete(p),
+                        onEdit: () => _openSheet(profile: p),
+                        onDelete: () => _delete(p),
                         onFetchData: p.plantName.isNotEmpty
                             ? () => _fetchData(p)
                             : null,
-                        isFetching:  _fetchingIds.contains(p.id),
+                        isFetching: _fetchingIds.contains(p.id),
                       );
                     }),
                 ],
@@ -285,19 +291,18 @@ class _CropProfilesScreenState extends State<CropProfilesScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Profile card — same Card style as the original screen
+// Profile card
 // ─────────────────────────────────────────────────────────────────────────────
 class _ProfileCard extends StatelessWidget {
-  final _Profile      profile;
-  final bool          isActive;
-  final ColorScheme   colors;
-  final AppColors     appColors;
+  final _Profile profile;
+  final bool isActive;
+  final ColorScheme colors;
+  final AppColors appColors;
   final VoidCallback? onSetActive;
-  final VoidCallback  onEdit;
-  final VoidCallback  onDelete;
-  // null = plant_name not set, so button is hidden entirely
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
   final VoidCallback? onFetchData;
-  final bool          isFetching;
+  final bool isFetching;
 
   const _ProfileCard({
     required this.profile,
@@ -311,18 +316,10 @@ class _ProfileCard extends StatelessWidget {
     this.isFetching = false,
   });
 
-  // Returns a human-readable "X days ago / today / yesterday" label.
-  // Used in the Perenual cache status row.
-  String _cacheLabel(DateTime cachedAt) {
-    final diff = DateTime.now().difference(cachedAt).inDays;
-    if (diff == 0) return 'today';
-    if (diff == 1) return 'yesterday';
-    return '$diff days ago';
-  }
-
   @override
   Widget build(BuildContext context) {
     final cached = profile.perenualCachedAt;
+    final plantData = profile.perenualData;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -338,10 +335,10 @@ class _ProfileCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header row ───────────────────────────────────────────────
+            // Header
             Row(
               children: [
-                Icon(PhosphorIcons.plant(), color: appColors.successGreen, size: 20),
+                Icon(Icons.eco, color: appColors.successGreen, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -351,33 +348,36 @@ class _ProfileCard extends StatelessWidget {
                 ),
                 if (isActive)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
-                      color:        AppTheme.teal,
+                      color: AppTheme.teal,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Text(
                       'ACTIVE',
                       style: TextStyle(
-                        color:         Colors.white,
-                        fontSize:      11,
-                        fontWeight:    FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
                         letterSpacing: 0.8,
                       ),
                     ),
                   ),
                 const SizedBox(width: 4),
                 IconButton(
-                  onPressed:     onEdit,
-                  icon:          Icon(PhosphorIcons.pencilSimple(), size: 18),
+                  onPressed: onEdit,
+                  icon: Icon(Icons.edit, size: 18),
                   visualDensity: VisualDensity.compact,
-                  tooltip:       'Edit',
+                  tooltip: 'Edit',
                 ),
                 IconButton(
-                  onPressed:     onDelete,
-                  icon:          Icon(PhosphorIcons.trash(), size: 18, color: colors.error),
+                  onPressed: onDelete,
+                  icon: Icon(Icons.delete, size: 18, color: colors.error),
                   visualDensity: VisualDensity.compact,
-                  tooltip:       'Delete',
+                  tooltip: 'Delete',
                 ),
               ],
             ),
@@ -386,12 +386,12 @@ class _ProfileCard extends StatelessWidget {
             const Divider(height: 1),
             const SizedBox(height: 10),
 
-            // ── Details row — plant name + moisture ──────────────────────
+            // Plant name + threshold
             Row(
               children: [
                 Expanded(
                   child: _DetailChip(
-                    icon:  PhosphorIcons.leaf(),
+                    icon: Icons.grass,
                     label: profile.plantName.isNotEmpty
                         ? profile.plantName
                         : 'No plant set',
@@ -400,47 +400,41 @@ class _ProfileCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 _DetailChip(
-                  icon:  PhosphorIcons.drop(),
+                  icon: Icons.water_drop,
                   label: '${profile.minMoisture.round()}% threshold',
                 ),
               ],
             ),
 
-            // ── Perenual status row ──────────────────────────────────────
-            // Only shown when a plant name has been entered.
-            // Green chip  = data is cached (shows when it was last fetched).
-            // Amber chip  = no data yet; fetch button is enabled.
-            // Stage 2 wires the fetch button to PerenualService.
+            // Perenual section
             if (profile.plantName.isNotEmpty) ...[
               const SizedBox(height: 10),
               Row(
                 children: [
-                  // Status chip
                   Expanded(
                     child: cached != null
                         ? _DetailChip(
-                            icon:  PhosphorIcons.checkCircle(),
-                            label: 'Plant data cached · ${_cacheLabel(cached)}',
+                            icon: Icons.check_circle,
+                            label:
+                                'Cached · ${DateHelpers.timeAgoLong(cached).toLowerCase()}',
                             color: AppTheme.teal,
                           )
                         : _DetailChip(
-                            icon:  PhosphorIcons.warningCircle(),
+                            icon: Icons.warning,
                             label: 'No plant data yet',
-                            color: const Color(0xFFB45309), // amber-700
+                            color: const Color(0xFFB45309),
                           ),
                   ),
                   const SizedBox(width: 8),
-                  // Fetch / Refresh button
                   SizedBox(
                     height: 32,
                     child: isFetching
-                        // Loading spinner while the Edge Function is running
                         ? const Padding(
                             padding: EdgeInsets.symmetric(horizontal: 8),
                             child: SizedBox(
-                              width:  18,
+                              width: 18,
                               height: 18,
-                              child:  CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           )
                         : OutlinedButton.icon(
@@ -449,31 +443,37 @@ class _ProfileCard extends StatelessWidget {
                               foregroundColor: AppTheme.teal,
                               side: const BorderSide(color: AppTheme.teal),
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 0,
+                                horizontal: 10,
                               ),
                               textStyle: const TextStyle(fontSize: 12),
                             ),
-                            icon:  Icon(
+                            icon: Icon(
                               cached != null
-                                  ? PhosphorIcons.arrowClockwise()
-                                  : PhosphorIcons.arrowSquareOut(),
+                                  ? Icons.refresh
+                                  : Icons.open_in_new,
                               size: 14,
                             ),
-                            label: Text(cached != null ? 'Refresh' : 'Fetch Data'),
+                            label: Text(
+                              cached != null ? 'Refresh' : 'Fetch Data',
+                            ),
                           ),
                   ),
                 ],
               ),
+              if (plantData != null) ...[
+                const SizedBox(height: 10),
+                _PlantDataPanel(data: plantData, colors: colors),
+              ],
             ],
 
-            // ── Set Active button ────────────────────────────────────────
+            // Set active button
             if (onSetActive != null) ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: onSetActive,
-                  icon:  Icon(PhosphorIcons.check(), size: 16),
+                  icon: Icon(Icons.check, size: 16),
                   label: const Text('Set as Active'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppTheme.teal,
@@ -490,12 +490,144 @@ class _ProfileCard extends StatelessWidget {
   }
 }
 
-// ── Small icon + label used inside the card ───────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Plant data panel
+// ─────────────────────────────────────────────────────────────────────────────
+class _PlantDataPanel extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final ColorScheme colors;
+
+  const _PlantDataPanel({required this.data, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final scientificName = data['scientific_name'] as String?;
+    final watering = data['watering'] as String?;
+    final sunlightRaw = data['sunlight'];
+    final cycle = data['cycle'] as String?;
+    final description = data['description'] as String?;
+
+    String? sunlight;
+    if (sunlightRaw is List && sunlightRaw.isNotEmpty) {
+      sunlight = sunlightRaw.map((e) => e.toString()).join(', ');
+    } else if (sunlightRaw is String) {
+      sunlight = sunlightRaw;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.teal.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.teal.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.eco, size: 14, color: AppTheme.teal),
+              const SizedBox(width: 6),
+              const Text(
+                'Plant Info',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.teal,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (scientificName != null && scientificName.isNotEmpty)
+            _InfoRow(
+              icon: Icons.menu_book,
+              label: 'Scientific name',
+              value: scientificName,
+            ),
+          if (watering != null && watering.isNotEmpty)
+            _InfoRow(
+              icon: Icons.water_drop,
+              label: 'Watering',
+              value: watering,
+            ),
+          if (sunlight != null && sunlight.isNotEmpty)
+            _InfoRow(
+              icon: Icons.wb_sunny,
+              label: 'Sunlight',
+              value: sunlight,
+            ),
+          if (cycle != null && cycle.isNotEmpty)
+            _InfoRow(icon: Icons.refresh, label: 'Cycle', value: cycle),
+          if (description != null && description.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              description,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 13, color: AppTheme.teal),
+        const SizedBox(width: 6),
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.pine,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.75),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Detail chip
+// ─────────────────────────────────────────────────────────────────────────────
 class _DetailChip extends StatelessWidget {
   final IconData icon;
-  final String   label;
-  final bool     faded;
-  final Color?   color; // explicit colour overrides the default pine/faded logic
+  final String label;
+  final bool faded;
+  final Color? color;
   const _DetailChip({
     required this.icon,
     required this.label,
@@ -505,10 +637,9 @@ class _DetailChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolved = color ??
-        (faded
-            ? AppTheme.pine.withValues(alpha: 0.35)
-            : AppTheme.pine);
+    final resolved =
+        color ??
+        (faded ? AppTheme.pine.withValues(alpha: 0.35) : AppTheme.pine);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -517,10 +648,9 @@ class _DetailChip extends StatelessWidget {
         Flexible(
           child: Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: resolved),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: resolved),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -529,7 +659,9 @@ class _DetailChip extends StatelessWidget {
   }
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Empty state
+// ─────────────────────────────────────────────────────────────────────────────
 class _EmptyState extends StatelessWidget {
   final VoidCallback onAdd;
   const _EmptyState({required this.onAdd});
@@ -541,19 +673,26 @@ class _EmptyState extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 60),
         child: Column(
           children: [
-            Icon(PhosphorIcons.plant(), size: 56,
-                color: AppTheme.teal.withValues(alpha: 0.5)),
+            Icon(
+              Icons.eco,
+              size: 56,
+              color: AppTheme.teal.withValues(alpha: 0.5),
+            ),
             const SizedBox(height: 16),
-            Text('No profiles yet',
-                style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'No profiles yet',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 6),
-            Text('Tap the + button to create your first crop profile.',
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center),
+            Text(
+              'Tap the + button to create your first crop profile.',
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: onAdd,
-              icon:  Icon(PhosphorIcons.plus()),
+              icon: Icon(Icons.add),
               label: const Text('Add Profile'),
             ),
           ],
@@ -564,12 +703,21 @@ class _EmptyState extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Bottom sheet — used for both CREATE and EDIT.
-// Contains the same slider + fields from the original screen.
+// Bottom sheet — GlobalKey-free
+//
+// Why no GlobalKey here:
+//   Form + GlobalKey<FormState> causes "multiple widgets used the same
+//   GlobalKey" errors when the sheet is opened, dismissed, and reopened
+//   because Flutter can reuse the old State before GC collects it.
+//
+//   Fix: validate directly against TextEditingController.text in _save().
+//   An error string (_nameError) drives the inline error display, replacing
+//   the Form validator entirely.
 // ─────────────────────────────────────────────────────────────────────────────
 class _ProfileSheet extends StatefulWidget {
-  final _Profile?    existing; // null = create, non-null = edit
+  final _Profile? existing;
   final VoidCallback onSaved;
+
   const _ProfileSheet({this.existing, required this.onSaved});
 
   @override
@@ -577,12 +725,15 @@ class _ProfileSheet extends StatefulWidget {
 }
 
 class _ProfileSheetState extends State<_ProfileSheet> {
-  final _formKey             = GlobalKey<FormState>();
-  final _nameController      = TextEditingController();
-  final _plantNameController = TextEditingController();
+  // No GlobalKey — controllers are enough.
+  final _nameController = TextEditingController();
+  final _plantController = TextEditingController();
 
   double _threshold = 30.0;
-  bool   _saving    = false;
+  bool _saving = false;
+
+  // Inline validation state — replaces Form validator.
+  String? _nameError;
 
   bool get _isEdit => widget.existing != null;
 
@@ -590,63 +741,76 @@ class _ProfileSheetState extends State<_ProfileSheet> {
   void initState() {
     super.initState();
     if (_isEdit) {
-      _nameController.text      = widget.existing!.name;
-      _plantNameController.text = widget.existing!.plantName;
-      _threshold                = widget.existing!.minMoisture;
+      _nameController.text = widget.existing!.name;
+      _plantController.text = widget.existing!.plantName;
+      _threshold = widget.existing!.minMoisture;
     }
+    // Clear the name error as soon as the user types.
+    _nameController.addListener(() {
+      if (_nameError != null && _nameController.text.trim().isNotEmpty) {
+        setState(() => _nameError = null);
+      }
+    });
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _plantNameController.dispose();
+    _plantController.dispose();
     super.dispose();
   }
 
+  // ── Inline validation — no GlobalKey needed ───────────────────────────────
+  bool _validate() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _nameError = 'Please enter a profile name');
+      return false;
+    }
+    setState(() => _nameError = null);
+    return true;
+  }
+
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_validate()) return;
     setState(() => _saving = true);
 
-    final userId    = Supabase.instance.client.auth.currentUser?.id;
-    final name      = _nameController.text.trim();
-    final plantName = _plantNameController.text.trim();
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    final name = _nameController.text.trim();
+    final plantName = _plantController.text.trim();
 
     try {
       if (_isEdit) {
-        // If plant name changed, clear Perenual cache so Stage 2 re-fetches
         final plantChanged = plantName != widget.existing!.plantName;
         await Supabase.instance.client
             .from('crop_profiles')
             .update({
-              'name':         name.isNotEmpty ? name : 'My Crop Profile',
-              'plant_name':   plantName.isNotEmpty ? plantName : null,
+              'name': name,
+              'plant_name': plantName.isNotEmpty ? plantName : null,
               'min_moisture': _threshold,
-              if (plantChanged) 'perenual_data':       null,
+              if (plantChanged) 'perenual_data': null,
               if (plantChanged) 'perenual_species_id': null,
-              if (plantChanged) 'perenual_cached_at':  null,
+              if (plantChanged) 'perenual_cached_at': null,
             })
             .eq('id', widget.existing!.id);
       } else {
-        // New profile — plain INSERT, no conflict issues
-        await Supabase.instance.client
-            .from('crop_profiles')
-            .insert({
-              'user_id':      userId,
-              'name':         name.isNotEmpty ? name : 'My Crop Profile',
-              'plant_name':   plantName.isNotEmpty ? plantName : null,
-              'min_moisture': _threshold,
-            });
+        await Supabase.instance.client.from('crop_profiles').insert({
+          'user_id': userId,
+          'name': name,
+          'plant_name': plantName.isNotEmpty ? plantName : null,
+          'min_moisture': _threshold,
+        });
       }
 
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+        Navigator.of(context).pop();
         widget.onSaved();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:  Text(_isEdit ? 'Profile updated.' : 'Profile created.'),
+            content: Text(_isEdit ? 'Profile updated.' : 'Profile created.'),
             behavior: SnackBarBehavior.floating,
-            margin:   const EdgeInsets.all(20),
-            shape:    RoundedRectangleBorder(
+            margin: const EdgeInsets.all(20),
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
           ),
@@ -656,9 +820,9 @@ class _ProfileSheetState extends State<_ProfileSheet> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:  Text('Error: $e'),
+            content: Text('Error: $e'),
             behavior: SnackBarBehavior.floating,
-            margin:   const EdgeInsets.all(20),
+            margin: const EdgeInsets.all(20),
           ),
         );
       }
@@ -669,128 +833,126 @@ class _ProfileSheetState extends State<_ProfileSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final colors    = Theme.of(context).colorScheme;
+    final colors = Theme.of(context).colorScheme;
     final appColors = Theme.of(context).extension<AppColors>()!;
     final bottomPad = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 24, 16, 24 + bottomPad),
-      child: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize:        MainAxisSize.min,
-            crossAxisAlignment:  CrossAxisAlignment.start,
-            children: [
-              // Sheet title
-              Row(
-                children: [
-                  Icon(PhosphorIcons.plant(), color: appColors.successGreen),
-                  const SizedBox(width: 8),
-                  Text(
-                    _isEdit ? 'Edit Profile' : 'New Profile',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Profile name — what the user calls this profile
-              TextFormField(
-                controller:         _nameController,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Profile Name',
-                  hintText:  'e.g. Summer Tomato',
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title
+            Row(
+              children: [
+                Icon(Icons.eco, color: appColors.successGreen),
+                const SizedBox(width: 8),
+                Text(
+                  _isEdit ? 'Edit Profile' : 'New Profile',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty)
-                        ? 'Please enter a profile name'
-                        : null,
-              ),
-              const SizedBox(height: 16),
+              ],
+            ),
+            const SizedBox(height: 20),
 
-              // Plant name — common name sent to Perenual in Stage 2
-              TextFormField(
-                controller:         _plantNameController,
-                textCapitalization: TextCapitalization.words,
-                decoration: InputDecoration(
-                  labelText:  'Plant Name',
-                  hintText:   'e.g. Tomato, Wheat, Basil',
-                  helperText: 'Used to fetch nutrient & care data from Perenual.',
-                  prefixIcon: Icon(PhosphorIcons.leaf(), color: colors.primary),
-                ),
-                validator: (_) => null,
+            // Profile name — error driven by _nameError, not Form validator
+            TextField(
+              controller: _nameController,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                labelText: 'Profile Name',
+                hintText: 'e.g. Summer Tomato',
+                errorText: _nameError,
               ),
-              const SizedBox(height: 24),
+            ),
+            const SizedBox(height: 16),
 
-              // Moisture threshold — same Card + Slider as original screen
-              Card(
-                margin: EdgeInsets.zero,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(PhosphorIcons.drop(), color: colors.primary),
-                          const SizedBox(width: 8),
-                          Text('Dry Threshold (%)',
-                              style: Theme.of(context).textTheme.titleMedium),
-                        ],
+            // Plant name
+            TextField(
+              controller: _plantController,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                labelText: 'Plant Name',
+                hintText: 'e.g. Tomato, Wheat, Basil',
+                helperText: 'Used to fetch nutrient & care data from Perenual.',
+                prefixIcon: Icon(Icons.grass, color: colors.primary),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Threshold slider
+            Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.water_drop, color: colors.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Dry Threshold (%)',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Pump turns on when moisture drops below this.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.onSurface.withValues(alpha: 0.6),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Pump turns on when moisture drops below this.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.onSurface.withValues(alpha: 0.6),
+                    ),
+                    Slider(
+                      value: _threshold,
+                      min: 0,
+                      max: 100,
+                      divisions: 20,
+                      label: '${_threshold.round()}%',
+                      onChanged: (v) => setState(() => _threshold = v),
+                    ),
+                    Center(
+                      child: Text(
+                        '${_threshold.round()}%',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      Slider(
-                        value:     _threshold,
-                        min:       0,
-                        max:       100,
-                        divisions: 20,
-                        label:     '${_threshold.round()}%',
-                        onChanged: (v) => setState(() => _threshold = v),
-                      ),
-                      Center(
-                        child: Text(
-                          '${_threshold.round()}%',
-                          style: const TextStyle(
-                            fontSize:   24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 24),
+            ),
+            const SizedBox(height: 24),
 
-              // Save button
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _saving ? null : _save,
-                  icon: _saving
-                      ? const SizedBox(
-                          width: 18, height: 18,
-                          child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2,
-                          ),
-                        )
-                      : Icon(PhosphorIcons.floppyDisk()),
-                  label: Text(
-                    _saving ? 'Saving…'
-                            : (_isEdit ? 'Save Changes' : 'Create Profile'),
-                  ),
+            // Save
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Icon(Icons.save),
+                label: Text(
+                  _saving
+                      ? 'Saving…'
+                      : (_isEdit ? 'Save Changes' : 'Create Profile'),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

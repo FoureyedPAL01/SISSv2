@@ -62,12 +62,19 @@ app/test/
 
 # Log files
 *.log
+app/analyze*.txt
+app/final_analyze.txt
+app/build_log.txt
 
 # Env / secrets
 .env
 .env.local
 .env.production
 !.env.example
+app/android/app/google-services.json
+app/ios/Runner/GoogleService-Info.plist
+app/android/key.properties
+app/android/app/*.jks
 
 # Supabase
 supabase/.temp/
@@ -76,3 +83,19 @@ app/supabase/config.toml
 
 # ESP32 / Arduino
 esp32/config.h
+
+# App assets (generated/downloaded)
+app/assets/fonts/
+app/assets/icon/
+app/assets/lottie/
+app/assets/set-1/
+app/assets/set-2/
+app/assets/set-3/
+app/assets/set-4/
+app/assets/set-5/
+app/assets/set-6/
+app/assets/weather_icons/
+
+# App generated files
+app/android/app/src/main/res/values/colors.xml
+app/ios/Runner/Assets.xcassets/AppIcon.appiconset/*.png

@@ -18,7 +18,7 @@ class LinkDeviceScreen extends StatefulWidget {
 
 class _LinkDeviceScreenState extends State<LinkDeviceScreen> {
   final _controller = TextEditingController();
-  bool    _isLoading = false;
+  bool _isLoading = false;
   String? _error;
 
   // Validates UUID format: 8-4-4-4-12 hex characters separated by dashes.
@@ -33,14 +33,19 @@ class _LinkDeviceScreenState extends State<LinkDeviceScreen> {
   Future<void> _linkDevice() async {
     final uuid = _controller.text.trim();
     debugPrint('[DEBUG] Attempting claim with UUID: $uuid');
-    debugPrint('[DEBUG] User: ${Supabase.instance.client.auth.currentUser?.id}');
-    
+    debugPrint(
+      '[DEBUG] User: ${Supabase.instance.client.auth.currentUser?.id}',
+    );
+
     if (!_isValidUuid(uuid)) {
       setState(() => _error = 'Please enter a valid device UUID.');
       return;
     }
 
-    setState(() { _isLoading = true; _error = null; });
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
     try {
       final userId = Supabase.instance.client.auth.currentUser!.id;
@@ -48,9 +53,9 @@ class _LinkDeviceScreenState extends State<LinkDeviceScreen> {
       final response = await Supabase.instance.client
           .from('devices')
           .update({
-        'user_id':    userId,
-        'claimed_at': DateTime.now().toIso8601String(),
-      })
+            'user_id': userId,
+            'claimed_at': DateTime.now().toIso8601String(),
+          })
           .eq('id', uuid)
           .select();
 
@@ -65,8 +70,8 @@ class _LinkDeviceScreenState extends State<LinkDeviceScreen> {
       }
 
       if (!mounted) return;
+      context.read<AppStateProvider>().clearRelink();
       await context.read<AppStateProvider>().refresh();
-
     } on PostgrestException catch (e) {
       debugPrint('[DEBUG] Full error: $e');
       setState(() {
@@ -93,14 +98,18 @@ class _LinkDeviceScreenState extends State<LinkDeviceScreen> {
     final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
+      backgroundColor: colors.surfaceContainerHighest,
       resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: SingleChildScrollView(          // prevents overflow when keyboard opens
+        child: SingleChildScrollView(
+          // prevents overflow when keyboard opens
           padding: const EdgeInsets.all(32.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 48),      // top spacing replaces mainAxisAlignment center
+              const SizedBox(
+                height: 48,
+              ), // top spacing replaces mainAxisAlignment center
               Icon(Icons.sensors, size: 72, color: colors.primary),
               const SizedBox(height: 24),
               Text(
@@ -113,20 +122,20 @@ class _LinkDeviceScreenState extends State<LinkDeviceScreen> {
               const SizedBox(height: 8),
               Text(
                 'Enter the Device UUID printed on the sticker\n'
-                    'on your SISS hardware unit.',
+                'on your SISS hardware unit.',
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
               TextField(
-                controller:         _controller,
-                autocorrect:        false,
-                enableSuggestions:  false,
+                controller: _controller,
+                autocorrect: false,
+                enableSuggestions: false,
                 textCapitalization: TextCapitalization.none,
                 decoration: InputDecoration(
                   labelText: 'Device UUID',
-                  hintText:  'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-                  border:    const OutlineInputBorder(),
+                  hintText: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+                  border: const OutlineInputBorder(),
                   errorText: _error,
                 ),
               ),
@@ -135,9 +144,10 @@ class _LinkDeviceScreenState extends State<LinkDeviceScreen> {
                 onPressed: _isLoading ? null : _linkDevice,
                 child: _isLoading
                     ? const SizedBox(
-                  height: 20, width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Text('Link Device'),
               ),
             ],

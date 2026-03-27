@@ -6,6 +6,10 @@
 
 # Supabase
 -keep class io.supabase.** { *; }
+-dontwarn io.supabase.**
+
+# Firebase
+-keep class com.google.firebase.** { *; }
 
 # Conscrypt (TLS) - suppress warnings
 -dontwarn org.conscrypt.**
