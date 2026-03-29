@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state_provider.dart';
+import '../widgets/double_back_press_wrapper.dart';
 
 class IrrigationScreen extends StatefulWidget {
   const IrrigationScreen({super.key});
@@ -18,13 +19,15 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     final colors = Theme.of(context).colorScheme;
     final processed = _processHistory(state);
 
-    return Scaffold(
-      backgroundColor: colors.surfaceContainerHighest,
-      body: RefreshIndicator(
-        onRefresh: state.refresh,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
-          children: [_buildChartCard(colors, state, processed)],
+    return DoubleBackPressWrapper(
+      child: Scaffold(
+        backgroundColor: colors.surfaceContainerHighest,
+        body: RefreshIndicator(
+          onRefresh: state.refresh,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
+            children: [_buildChartCard(colors, state, processed)],
+          ),
         ),
       ),
     );
@@ -41,7 +44,9 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     var invalidRows = 0;
 
     for (final row in state.sensorHistory) {
-      final recordedAt = DateTime.tryParse((row['recorded_at'] ?? '').toString());
+      final recordedAt = DateTime.tryParse(
+        (row['recorded_at'] ?? '').toString(),
+      );
       final moistureRaw = row['soil_moisture'];
       final moisture = moistureRaw is num
           ? moistureRaw.toDouble()
@@ -65,7 +70,8 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
 
     spots.sort((a, b) => a.x.compareTo(b.x));
 
-    final error = spots.isEmpty &&
+    final error =
+        spots.isEmpty &&
             state.sensorHistory.isNotEmpty &&
             invalidRows == state.sensorHistory.length
         ? 'Could not read moisture history from the available records.'
@@ -160,9 +166,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
                   ? 'Link your ESP32 device to view irrigation history.'
                   : 'No soil moisture readings were found for the last 7 days.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.onSurface.withValues(alpha: 0.55),
-              ),
+              style: TextStyle(color: colors.onSurface.withValues(alpha: 0.55)),
             ),
           ],
         ),
@@ -266,8 +270,5 @@ class _ProcessedHistory {
   final List<FlSpot> spots;
   final String? error;
 
-  const _ProcessedHistory({
-    required this.spots,
-    this.error,
-  });
+  const _ProcessedHistory({required this.spots, this.error});
 }

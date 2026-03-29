@@ -6,9 +6,12 @@
 //   • This prevents "multiple widgets used the same GlobalKey" crashes that
 //     occur when the sheet is opened more than once per session.
 
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../main.dart' show AppConfig;
 import '../theme.dart';
 import '../utils/date_helpers.dart';
 import '../providers/app_state_provider.dart';
@@ -193,18 +196,42 @@ class _CropProfilesScreenState extends State<CropProfilesScreen>
 
     try {
       final session = Supabase.instance.client.auth.currentSession;
-      final accessToken = session?.accessToken;
-      if (accessToken == null) throw Exception('Not logged in');
+      if (session == null) throw Exception('User not logged in');
 
-      final response = await Supabase.instance.client.functions.invoke(
-        'perenual-lookup',
-        body: {'profile_id': profile.id, 'plant_name': profile.plantName},
-        headers: {'Authorization': 'Bearer $accessToken'},
+      // Use direct HTTP to bypass SDK token handling issues
+      final accessToken = session.accessToken;
+
+      debugPrint('=== HTTP Call Debug ===');
+      debugPrint('URL: ${AppConfig.supabaseUrl}/functions/v1/perenual-lookup');
+      debugPrint('Token: $accessToken');
+      debugPrint('Token length: ${accessToken.length}');
+      debugPrint('======================');
+
+      final response = await http.post(
+        Uri.parse('${AppConfig.supabaseUrl}/functions/v1/perenual-lookup'),
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': accessToken, // Also pass as apikey
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: jsonEncode({
+          'profile_id': profile.id,
+          'plant_name': profile.plantName,
+        }),
       );
 
-      final body = response.data as Map<String, dynamic>?;
-      if (body == null || body['ok'] != true) {
-        throw Exception(body?['error'] ?? 'Unknown error from Perenual lookup');
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'Edge function error: ${response.statusCode} - ${response.body}',
+        );
+      }
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      if (body['ok'] != true) {
+        throw Exception(body['error'] ?? 'Unknown error from Perenual lookup');
       }
 
       await _load();
@@ -553,11 +580,7 @@ class _PlantDataPanel extends StatelessWidget {
               value: watering,
             ),
           if (sunlight != null && sunlight.isNotEmpty)
-            _InfoRow(
-              icon: Icons.wb_sunny,
-              label: 'Sunlight',
-              value: sunlight,
-            ),
+            _InfoRow(icon: Icons.wb_sunny, label: 'Sunlight', value: sunlight),
           if (cycle != null && cycle.isNotEmpty)
             _InfoRow(icon: Icons.refresh, label: 'Cycle', value: cycle),
           if (description != null && description.isNotEmpty) ...[

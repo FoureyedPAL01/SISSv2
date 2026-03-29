@@ -16,6 +16,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_state_provider.dart';
 import '../utils/unit_converter.dart';
 import '../theme.dart';
+import '../widgets/double_back_press_wrapper.dart';
 
 // ─── Dashed Border Painter ─────────────────────────────────────────────────────
 class DashedBorder extends StatelessWidget {
@@ -506,12 +507,14 @@ class _WeatherScreenState extends State<WeatherScreen>
       (p) => p.precipitationUnit,
     );
 
-    return Scaffold(
-      backgroundColor: colors.surfaceContainerHighest,
-      body: RefreshIndicator(
-        color: AppTheme.teal,
-        onRefresh: () => _load(force: true),
-        child: _buildBody(context, tempUnit, windUnit, precipUnit),
+    return DoubleBackPressWrapper(
+      child: Scaffold(
+        backgroundColor: colors.surfaceContainerHighest,
+        body: RefreshIndicator(
+          color: AppTheme.teal,
+          onRefresh: () => _load(force: true),
+          child: _buildBody(context, tempUnit, windUnit, precipUnit),
+        ),
       ),
     );
   }

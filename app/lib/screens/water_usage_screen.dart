@@ -19,6 +19,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/app_state_provider.dart';
 import '../utils/unit_converter.dart';
 import '../theme.dart';
+import '../widgets/double_back_press_wrapper.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data model: one calendar day's aggregated pump activity
@@ -223,21 +224,23 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
     final textTheme = Theme.of(context).textTheme;
     final volUnit = context.watch<AppStateProvider>().volumeUnit;
 
-    return Scaffold(
-      backgroundColor: colors.surfaceContainerHighest,
-      body: RefreshIndicator(
-        color: colors.primary,
-        onRefresh: _fetchData,
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-            ? _buildError(colors)
-            : _buildBody(
-                colors: colors,
-                appColors: appColors,
-                textTheme: textTheme,
-                volUnit: volUnit,
-              ),
+    return DoubleBackPressWrapper(
+      child: Scaffold(
+        backgroundColor: colors.surfaceContainerHighest,
+        body: RefreshIndicator(
+          color: colors.primary,
+          onRefresh: _fetchData,
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+              ? _buildError(colors)
+              : _buildBody(
+                  colors: colors,
+                  appColors: appColors,
+                  textTheme: textTheme,
+                  volUnit: volUnit,
+                ),
+        ),
       ),
     );
   }

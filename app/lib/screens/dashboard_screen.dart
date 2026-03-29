@@ -16,6 +16,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/app_state_provider.dart';
 import '../services/mqtt_service.dart';
 import '../utils/unit_converter.dart';
+import '../widgets/double_back_press_wrapper.dart';
 
 // ─── Lightweight data models ──────────────────────────────────────────────────
 
@@ -148,96 +149,98 @@ class _DashboardScreenState extends State<DashboardScreen>
         final tempHist = _cachedTempHist;
         final humidHist = _cachedHumidHist;
 
-        return Scaffold(
-          backgroundColor: bg,
-          body: RefreshIndicator(
-            color: btn,
-            backgroundColor: comp,
-            onRefresh: () async {
-              await state.refresh();
-            },
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
-              child: LayoutBuilder(
-                builder: (_, constraints) {
-                  final isDesktop = constraints.maxWidth >= 700;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ── 1. Active Profile ────────────────────────────────
-                      _buildProfileCard(
-                        isDark: isDark,
-                        comp: comp,
-                        text: text,
-                        muted: muted,
-                        cropProfile: state.activeCropProfile,
-                      ),
-                      const SizedBox(height: 16),
+        return DoubleBackPressWrapper(
+          child: Scaffold(
+            backgroundColor: bg,
+            body: RefreshIndicator(
+              color: btn,
+              backgroundColor: comp,
+              onRefresh: () async {
+                await state.refresh();
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
+                child: LayoutBuilder(
+                  builder: (_, constraints) {
+                    final isDesktop = constraints.maxWidth >= 700;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ── 1. Active Profile ────────────────────────────────
+                        _buildProfileCard(
+                          isDark: isDark,
+                          comp: comp,
+                          text: text,
+                          muted: muted,
+                          cropProfile: state.activeCropProfile,
+                        ),
+                        const SizedBox(height: 16),
 
-                      // ── 2. Pump + Rain ───────────────────────────────────
+                        // ── 2. Pump + Rain ───────────────────────────────────
 
-                      // ── 2. Four Sensor Cards ─────────────────────────
-                      _buildSensorCards(
-                        isDark: isDark,
-                        comp: comp,
-                        text: text,
-                        muted: muted,
-                        isDesktop: isDesktop,
-                        moisture: moisture,
-                        tempC: tempC,
-                        humidity: humidity,
-                        flowRate: flowRate,
-                        tempDisplay: tempDisplay,
-                      ),
-                      const SizedBox(height: 16),
+                        // ── 2. Four Sensor Cards ─────────────────────────
+                        _buildSensorCards(
+                          isDark: isDark,
+                          comp: comp,
+                          text: text,
+                          muted: muted,
+                          isDesktop: isDesktop,
+                          moisture: moisture,
+                          tempC: tempC,
+                          humidity: humidity,
+                          flowRate: flowRate,
+                          tempDisplay: tempDisplay,
+                        ),
+                        const SizedBox(height: 16),
 
-                      // ── 2. Pump + Rain ───────────────────────────────────
-                      isDesktop
-                          ? _buildStatusRowDesktop(
-                              isDark: isDark,
-                              comp: comp,
-                              text: text,
-                              muted: muted,
-                              btn: btn,
-                              isRaining: isRaining,
-                              flowRate: flowRate,
-                            )
-                          : _buildStatusRowMobile(
-                              isDark: isDark,
-                              comp: comp,
-                              text: text,
-                              muted: muted,
-                              btn: btn,
-                              isRaining: isRaining,
-                              flowRate: flowRate,
-                            ),
-                      const SizedBox(height: 16),
+                        // ── 2. Pump + Rain ───────────────────────────────────
+                        isDesktop
+                            ? _buildStatusRowDesktop(
+                                isDark: isDark,
+                                comp: comp,
+                                text: text,
+                                muted: muted,
+                                btn: btn,
+                                isRaining: isRaining,
+                                flowRate: flowRate,
+                              )
+                            : _buildStatusRowMobile(
+                                isDark: isDark,
+                                comp: comp,
+                                text: text,
+                                muted: muted,
+                                btn: btn,
+                                isRaining: isRaining,
+                                flowRate: flowRate,
+                              ),
+                        const SizedBox(height: 16),
 
-                      // ── 3. Soil Moisture History ─────────────────────
-                      _buildMoistureChart(
-                        isDark: isDark,
-                        comp: comp,
-                        text: text,
-                        muted: muted,
-                        data: moistHist,
-                      ),
-                      const SizedBox(height: 16),
+                        // ── 3. Soil Moisture History ─────────────────────
+                        _buildMoistureChart(
+                          isDark: isDark,
+                          comp: comp,
+                          text: text,
+                          muted: muted,
+                          data: moistHist,
+                        ),
+                        const SizedBox(height: 16),
 
-                      // ── 4. Temp & Humidity Chart ─────────────────────
-                      _buildTempHumidChart(
-                        isDark: isDark,
-                        comp: comp,
-                        text: text,
-                        muted: muted,
-                        tempData: tempHist,
-                        humidData: humidHist,
-                        currentTemp: tempC,
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                  );
-                },
+                        // ── 4. Temp & Humidity Chart ─────────────────────
+                        _buildTempHumidChart(
+                          isDark: isDark,
+                          comp: comp,
+                          text: text,
+                          muted: muted,
+                          tempData: tempHist,
+                          humidData: humidHist,
+                          currentTemp: tempC,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -469,9 +472,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              isRaining
-                  ? Icons.umbrella_rounded
-                  : Icons.cloud_off_rounded,
+              isRaining ? Icons.umbrella_rounded : Icons.cloud_off_rounded,
               color: iconColor,
               size: 20,
             ),

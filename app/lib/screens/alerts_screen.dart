@@ -16,6 +16,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state_provider.dart';
 import '../utils/date_helpers.dart';
+import '../widgets/double_back_press_wrapper.dart';
 
 // ── Impact classification ─────────────────────────────────────────────────────
 
@@ -230,13 +231,14 @@ class _AlertsScreenState extends State<AlertsScreen> {
   // ── Build ─────────────────────────────────────────────────────────────────
 
   List<String> get _availableAlertTypes {
-    final types = _alerts
-        .map((a) => (a['alert_type'] as String?)?.trim())
-        .whereType<String>()
-        .where((type) => type.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final types =
+        _alerts
+            .map((a) => (a['alert_type'] as String?)?.trim())
+            .whereType<String>()
+            .where((type) => type.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
     return types;
   }
 
@@ -253,9 +255,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
     return type
         .split('_')
         .where((part) => part.isNotEmpty)
-        .map(
-          (part) => part[0].toUpperCase() + part.substring(1).toLowerCase(),
-        )
+        .map((part) => part[0].toUpperCase() + part.substring(1).toLowerCase())
         .join(' ');
   }
 
@@ -263,13 +263,15 @@ class _AlertsScreenState extends State<AlertsScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Material(
-      type: MaterialType.transparency,
-      child: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? _buildError(cs)
-          : _buildContent(cs),
+    return DoubleBackPressWrapper(
+      child: Material(
+        type: MaterialType.transparency,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? _buildError(cs)
+            : _buildContent(cs),
+      ),
     );
   }
 
@@ -396,8 +398,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
                         selected: _selectedAlertType == type,
                         onSelected: (_) {
                           setState(() {
-                            _selectedAlertType =
-                                _selectedAlertType == type ? null : type;
+                            _selectedAlertType = _selectedAlertType == type
+                                ? null
+                                : type;
                           });
                         },
                       ),

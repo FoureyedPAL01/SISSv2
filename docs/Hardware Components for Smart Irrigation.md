@@ -1,13 +1,11 @@
 ## **Components**
 
-* ESP32  
-* Soil Moisture  
+* ESP32 30 pins devkit 1
+* Soil Moisture sensor capacitive  
 * DHT11  
 * Rain Sensor  
-* Flow Sensor YF-S201  
-* MOSFET driver module  
-* Relay Module  
-* DC Pump (12V mini submersible)  
-* 5v 2amp mobile charger for esp32 and 12v 2amp adapter for dc pump  
+* Flow Sensor YF-S201
+* d4184 mosfet module
+* DC Pump (12V mini submersible)
 * Breadboard  
 * Jumper Wires

@@ -22,11 +22,20 @@ interface WeeklyData {
 
 Deno.serve(async (req) => {
   try {
+    // Check for test mode (skip Monday check)
+    const body = await req.json().catch(() => ({}));
+    const isTest = body.test === true;
+    
+    console.log('Is test mode:', isTest);
+    console.log('Request body:', JSON.stringify(body));
+    
     // Get all users with weekly_summary enabled
     const { data: profiles, error: profileError } = await supabase
       .from('user_profiles')
       .select('user_id, timezone, weekly_summary')
       .eq('weekly_summary', true);
+
+    console.log('Profiles found:', profiles?.length || 0);
 
     if (profileError) {
       console.error('Error fetching profiles:', profileError);
@@ -37,7 +46,8 @@ Deno.serve(async (req) => {
     }
 
     if (!profiles || profiles.length === 0) {
-      return new Response(JSON.stringify({ message: 'No users with weekly summary enabled' }), {
+      console.log('No users with weekly summary enabled');
+      return new Response(JSON.stringify({ message: 'No users with weekly summary enabled', profilesCount: 0 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -58,13 +68,13 @@ Deno.serve(async (req) => {
         const userEmail = userData.user.email;
         const timezone = profile.timezone || 'UTC';
 
-        // Check if today is Monday in user's timezone
+        // Check if today is Monday in user's timezone (skip in test mode)
         const now = new Date();
         const userDateStr = now.toLocaleString('en-US', { timeZone: timezone });
         const userDate = new Date(userDateStr);
         
-        // If it's not Monday, skip (daily cron checks every day)
-        if (userDate.getDay() !== 1) {
+        // If it's not Monday and not test mode, skip
+        if (!isTest && userDate.getDay() !== 1) {
           continue;
         }
 

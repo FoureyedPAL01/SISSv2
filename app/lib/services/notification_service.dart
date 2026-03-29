@@ -24,13 +24,13 @@ class NotificationService {
 
   static const AndroidNotificationChannel _alertChannel =
       AndroidNotificationChannel(
-    'sissv2_alerts',
-    'Plant Alerts',
-    description: 'Real-time alerts from your ESP32 plant monitoring system',
-    importance: Importance.high,
-    playSound: true,
-    enableVibration: true,
-  );
+        'sissv2_alerts',
+        'Plant Alerts',
+        description: 'Real-time alerts from your ESP32 plant monitoring system',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      );
 
   static Future<void> initialize() async {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -94,7 +94,8 @@ class NotificationService {
 
     await _localNotifications
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(_alertChannel);
 
     const AndroidInitializationSettings androidSettings =
@@ -117,14 +118,11 @@ class NotificationService {
         return;
       }
 
-      await Supabase.instance.client.from('device_tokens').upsert(
-        {
-          'user_id': user.id,
-          'fcm_token': token,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
-        onConflict: 'user_id',
-      );
+      await Supabase.instance.client.from('device_tokens').upsert({
+        'user_id': user.id,
+        'fcm_token': token,
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'user_id');
 
       debugPrint('[INFO] FCM token saved to Supabase');
     } catch (e) {
@@ -226,5 +224,34 @@ class NotificationService {
     } catch (e) {
       debugPrint('[ERROR] Failed to remove FCM token: $e');
     }
+  }
+
+  static Future<void> sendTestNotification() async {
+    await _ensureLocalNotificationsInitialized();
+
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'sissv2_alerts',
+          'Plant Alerts',
+          channelDescription:
+              'Real-time alerts from your ESP32 plant monitoring system',
+          importance: Importance.high,
+          priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
+        );
+
+    const NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+    );
+
+    await _localNotifications.show(
+      0,
+      'Test Notification',
+      'This is a test notification from SISSv2!',
+      details,
+    );
+
+    debugPrint('[INFO] Test notification sent');
   }
 }

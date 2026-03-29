@@ -11,6 +11,10 @@ import 'services/mqtt_service.dart';
 import 'services/notification_service.dart';
 import 'router.dart';
 
+class AppConfig {
+  static String supabaseUrl = '';
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -18,8 +22,9 @@ void main() async {
     debugPrint('[WARN] .env file not found');
   });
 
+  AppConfig.supabaseUrl = dotenv.env['SUPABASE_URL']!;
   await Supabase.initialize(
-    url:     dotenv.env['SUPABASE_URL']!,
+    url: AppConfig.supabaseUrl,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
@@ -28,7 +33,7 @@ void main() async {
     await NotificationService.initialize();
   }
 
-  final appState    = AppStateProvider();
+  final appState = AppStateProvider();
   final mqttService = MqttService();
 
   // Connect MQTT in background — non-blocking, silently skipped on web.
@@ -44,11 +49,11 @@ void main() async {
       ],
       child: Consumer<AppStateProvider>(
         builder: (context, provider, _) => MaterialApp.router(
-          title:                      'Smart Irrigation',
-          theme:                      AppTheme.lightTheme,
-          darkTheme:                  AppTheme.darkTheme,
-          themeMode:                  provider.themeMode,
-          routerConfig:               createRouter(appState),
+          title: 'Smart Irrigation',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: provider.themeMode,
+          routerConfig: createRouter(appState),
           debugShowCheckedModeBanner: false,
         ),
       ),
