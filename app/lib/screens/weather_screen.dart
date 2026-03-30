@@ -1268,11 +1268,11 @@ class _WindTile extends StatelessWidget {
               child: ClipOval(
                 child: ColorFiltered(
                   colorFilter: ColorFilter.mode(
-                    Colors.white.withValues(alpha: 0.85),
+                    Colors.white.withValues(alpha: 0.90),
                     BlendMode.srcOver,
                   ),
                   child: Transform.scale(
-                    scale: 1.4,
+                    scale: 1.2,
                     child: Image.asset(
                       'assets/icon/compass2.jpg',
                       fit: BoxFit.cover,
@@ -1382,7 +1382,7 @@ class _UVTile extends StatelessWidget {
               child: ClipOval(
                 child: ColorFiltered(
                   colorFilter: ColorFilter.mode(
-                    Colors.white.withValues(alpha: 0.45),
+                    Colors.white.withValues(alpha: 0.70),
                     BlendMode.srcOver,
                   ),
                   child: Transform.scale(

@@ -50,7 +50,7 @@ class MoreScreen extends StatelessWidget {
                     children: [
                       ClipOval(
                         child: Image.asset(
-                          'assets/icon/try1.jpg',
+                          'assets/icon/master.png',
                           width: 88,
                           height: 88,
                           fit: BoxFit.cover,
