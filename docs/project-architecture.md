@@ -21,7 +21,7 @@ SISSv2/
 │   │   ├── theme.dart           # App theming
 │   │   ├── providers/          # State management
 │   │   ├── screens/             # UI pages (15 screens)
-│   │   ├── widgets/             # Reusable components (8 files)
+│   │   ├── widgets/             # Reusable components (9 files)
 │   │   ├── services/            # Business logic
 │   │   └── utils/               # Helper functions
 │   ├── android/                 # Android platform files
@@ -218,7 +218,7 @@ app/lib/
 - Handles push notification payloads
 - Navigation based on notification data
 
-### Widgets (8 files)
+### Widgets (9 files)
 
 | Widget | Purpose |
 |--------|---------|
@@ -230,6 +230,7 @@ app/lib/
 | `read_only_tile.dart` | Display-only info tile |
 | `inline_password_tile.dart` | Password input tile |
 | `delete_account_button.dart` | Account deletion |
+| `double_back_press_wrapper.dart` | Prevents accidental back navigation |
 
 ### Utils (3 files)
 
@@ -295,7 +296,7 @@ app/assets/
 │   ├── Material_Icons_Outlined/
 │   ├── Material_Icons_Round/
 │   └── Material_Icons_Two_Tone/
-├── icon/                     # App icons (compass, UV, etc.)
+├── icon/                     # App icons (master.png, compass2.jpg, UV.jpg)
 ├── lottie/                   # Lottie animations
 │   ├── phone_portrait/       # Phone portrait animations
 │   ├── phone_portrait_night/ # Night variants
@@ -472,15 +473,14 @@ supabase functions deploy send-alert-notification
 - [x] `supabase_client.h` - API client
 - [x] `weather_client.h` - Weather API
 
-### Flutter Files (34 Dart files)
+### Flutter Files (35 Dart files)
 - [x] `main.dart` - Entry point
 - [x] `router.dart` - Navigation
 - [x] `theme.dart` - Styling
 - [x] `app_state_provider.dart` - State (564 lines)
-- [x] `test_radio.dart` - Radio widget test file
 - [x] 15 screens
 - [x] 2 services
-- [x] 8 widgets
+- [x] 9 widgets
 - [x] 3 utils
 
 ### Configuration Files
@@ -516,7 +516,7 @@ supabase functions deploy send-alert-notification
 
 | Category | Count |
 |----------|-------|
-| Total Dart Files | 34 |
+| Total Dart Files | 35 |
 | Total Screens | 15 |
 | Total Edge Functions | 4 |
 | Total Database Migrations | 3 |
