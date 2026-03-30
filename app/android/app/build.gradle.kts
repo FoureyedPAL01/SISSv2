@@ -40,12 +40,12 @@ android {
         }
     }
     
-    // Split APK by ABI
+    // Split APK by ABI - only build common ABIs to save space
     splits {
         abi {
             isEnable = true
             reset()
-            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            include("armeabi-v7a", "arm64-v8a")
             isUniversalApk = true
         }
     }

@@ -6,6 +6,7 @@ import '../widgets/settings_section.dart';
 import '../widgets/read_only_tile.dart';
 import '../widgets/inline_password_tile.dart';
 import '../widgets/delete_account_button.dart';
+import '../widgets/double_back_press_wrapper.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -82,18 +83,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildUsernameRow(AppStateProvider provider, ColorScheme colors) {
     final labelColor =
-        Theme.of(context).textTheme.headlineMedium?.color ??
-            colors.onSurface;
+        Theme.of(context).textTheme.headlineMedium?.color ?? colors.onSurface;
 
     if (!_isEditingUsername) {
       return ListTile(
         leading: Icon(Icons.person_rounded, size: 20, color: labelColor),
-        title: Text('Username',
-            style: TextStyle(fontSize: 12, color: labelColor)),
+        title: Text(
+          'Username',
+          style: TextStyle(fontSize: 12, color: labelColor),
+        ),
         subtitle: Text(
           provider.username,
           style: TextStyle(
-              fontSize: 16, fontWeight: FontWeight.normal, color: labelColor),
+            fontSize: 16,
+            fontWeight: FontWeight.normal,
+            color: labelColor,
+          ),
         ),
         trailing: IconButton(
           icon: Icon(Icons.edit_rounded, size: 20, color: labelColor),
@@ -108,13 +113,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextField(
-            controller:      _usernameController,
-            focusNode:       _usernameFocusNode,
+            controller: _usernameController,
+            focusNode: _usernameFocusNode,
             decoration: InputDecoration(
-              labelText:   'Username',
-              errorText:   _usernameError,
-              border:      const OutlineInputBorder(),
-              prefixIcon:  Icon(Icons.person_rounded, size: 20),
+              labelText: 'Username',
+              errorText: _usernameError,
+              border: const OutlineInputBorder(),
+              prefixIcon: Icon(Icons.person_rounded, size: 20),
             ),
             onSubmitted: (_) => _saveUsername(),
             textInputAction: TextInputAction.done,
@@ -134,7 +139,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onPressed: provider.isSaving ? null : _saveUsername,
                 icon: provider.isSaving
                     ? SizedBox(
-                        width: 16, height: 16,
+                        width: 16,
+                        height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: colors.onPrimary,
@@ -160,12 +166,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider  = context.watch<AppStateProvider>();
-    final user      = Supabase.instance.client.auth.currentUser;
-    final colors    = Theme.of(context).colorScheme;
+    final provider = context.watch<AppStateProvider>();
+    final user = Supabase.instance.client.auth.currentUser;
+    final colors = Theme.of(context).colorScheme;
     final labelColor =
-        Theme.of(context).textTheme.headlineMedium?.color ??
-            colors.onSurface;
+        Theme.of(context).textTheme.headlineMedium?.color ?? colors.onSurface;
 
     final display = provider.username.isNotEmpty
         ? provider.username
@@ -178,115 +183,117 @@ class _ProfileScreenState extends State<ProfileScreen> {
         .map((w) => w[0].toUpperCase())
         .join();
 
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 40),
-      children: [
-        Container(
-          width:   double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 36),
-          decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.08),
-            border: Border(
-              bottom: BorderSide(
-                color: colors.outline.withValues(alpha: 0.2),
+    return DoubleBackPressWrapper(
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 40),
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 36),
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: 0.08),
+              border: Border(
+                bottom: BorderSide(
+                  color: colors.outline.withValues(alpha: 0.2),
+                ),
               ),
             ),
-          ),
-          child: Column(
-            children: [
-              CircleAvatar(
-                radius:          44,
-                backgroundColor: colors.primary,
-                child: Text(
-                  initials,
-                  style: const TextStyle(
-                    fontSize:   28,
-                    fontWeight: FontWeight.bold,
-                    color:      Colors.white,
-                    fontFamily: 'Poppins',
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 44,
+                  backgroundColor: colors.primary,
+                  child: Text(
+                    initials,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontFamily: 'Poppins',
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                provider.username.isNotEmpty ? provider.username : 'No username set',
-                style: TextStyle(
-                  fontFamily:  'Poppins',
-                  fontSize:    20,
-                  fontWeight:  FontWeight.bold,
-                  color:       colors.onSurface,
+                const SizedBox(height: 14),
+                Text(
+                  provider.username.isNotEmpty
+                      ? provider.username
+                      : 'No username set',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: colors.onSurface,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                user?.email ?? '',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize:   13,
-                  color:      colors.onSurface.withValues(alpha: 0.5),
+                const SizedBox(height: 4),
+                Text(
+                  user?.email ?? '',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 13,
+                    color: colors.onSurface.withValues(alpha: 0.5),
+                  ),
                 ),
+              ],
+            ),
+          ),
+          SettingsSection(
+            title: 'Account Details',
+            leadingIcon: Icon(Icons.badge_rounded, size: 20, color: labelColor),
+            children: [
+              _buildUsernameRow(provider, colors),
+              ReadOnlyTile(
+                title: 'Email',
+                value: user?.email ?? 'Not logged in',
+                icon: Icons.email_rounded,
               ),
             ],
           ),
-        ),
-        SettingsSection(
-          title:       'Account Details',
-          leadingIcon: Icon(Icons.badge_rounded,
-              size: 20, color: labelColor),
-          children: [
-            _buildUsernameRow(provider, colors),
-            ReadOnlyTile(
-              title: 'Email',
-              value: user?.email ?? 'Not logged in',
-              icon:  Icons.email_rounded,
-            ),
-          ],
-        ),
-        SettingsSection(
-          title:       'Security',
-          leadingIcon: Icon(Icons.lock_rounded,
-              size: 20, color: labelColor),
-          children: [
-            InlinePasswordTile(
-              title:        'Change Password',
-              icon:         Icons.lock_rounded,
-              onUpdate:     (current, newPass) =>
-                  provider.updatePassword(current, newPass),
-              isLoading:    provider.isSaving,
-              errorMessage: provider.saveError,
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: FilledButton.icon(
-            onPressed: () => _signOut(),
-            style: FilledButton.styleFrom(
-              backgroundColor: colors.error.withValues(alpha: 0.85),
-              foregroundColor: Colors.white,
-            ),
-            icon:  const Icon(Icons.logout),
-            label: const Text('Sign Out'),
+          SettingsSection(
+            title: 'Security',
+            leadingIcon: Icon(Icons.lock_rounded, size: 20, color: labelColor),
+            children: [
+              InlinePasswordTile(
+                title: 'Change Password',
+                icon: Icons.lock_rounded,
+                onUpdate: (current, newPass) =>
+                    provider.updatePassword(current, newPass),
+                isLoading: provider.isSaving,
+                errorMessage: provider.saveError,
+              ),
+            ],
           ),
-        ),
-        const SizedBox(height: 24),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Danger Zone',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color:      colors.error,
-              fontWeight: FontWeight.bold,
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: FilledButton.icon(
+              onPressed: () => _signOut(),
+              style: FilledButton.styleFrom(
+                backgroundColor: colors.error.withValues(alpha: 0.85),
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.logout),
+              label: const Text('Sign Out'),
             ),
           ),
-        ),
-        const SizedBox(height: 8),
-        DeleteAccountButton(
-          onDelete:  () => _deleteAccount(),
-          isLoading: provider.isSaving,
-        ),
-      ],
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'Danger Zone',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: colors.error,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          DeleteAccountButton(
+            onDelete: () => _deleteAccount(),
+            isLoading: provider.isSaving,
+          ),
+        ],
+      ),
     );
   }
 }

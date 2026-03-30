@@ -15,6 +15,7 @@ import '../main.dart' show AppConfig;
 import '../theme.dart';
 import '../utils/date_helpers.dart';
 import '../providers/app_state_provider.dart';
+import '../widgets/double_back_press_wrapper.dart';
 
 // ── Data model ────────────────────────────────────────────────────────────────
 class _Profile {
@@ -276,43 +277,45 @@ class _CropProfilesScreenState extends State<CropProfilesScreen>
     final colors = Theme.of(context).colorScheme;
     final appColors = Theme.of(context).extension<AppColors>()!;
 
-    return Scaffold(
-      backgroundColor: colors.surfaceContainerHighest,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openSheet(),
-        tooltip: 'Add Profile',
-        child: Icon(Icons.add),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                children: [
-                  if (_profiles.isEmpty)
-                    _EmptyState(onAdd: () => _openSheet())
-                  else
-                    ...List.generate(_profiles.length, (i) {
-                      final p = _profiles[i];
-                      final isActive = p.id == _activeId;
-                      return _ProfileCard(
-                        profile: p,
-                        isActive: isActive,
-                        colors: colors,
-                        appColors: appColors,
-                        onSetActive: isActive ? null : () => _setActive(p.id),
-                        onEdit: () => _openSheet(profile: p),
-                        onDelete: () => _delete(p),
-                        onFetchData: p.plantName.isNotEmpty
-                            ? () => _fetchData(p)
-                            : null,
-                        isFetching: _fetchingIds.contains(p.id),
-                      );
-                    }),
-                ],
+    return DoubleBackPressWrapper(
+      child: Scaffold(
+        backgroundColor: colors.surfaceContainerHighest,
+        floatingActionButton: FloatingActionButton(
+          onPressed: () => _openSheet(),
+          tooltip: 'Add Profile',
+          child: Icon(Icons.add),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                  children: [
+                    if (_profiles.isEmpty)
+                      _EmptyState(onAdd: () => _openSheet())
+                    else
+                      ...List.generate(_profiles.length, (i) {
+                        final p = _profiles[i];
+                        final isActive = p.id == _activeId;
+                        return _ProfileCard(
+                          profile: p,
+                          isActive: isActive,
+                          colors: colors,
+                          appColors: appColors,
+                          onSetActive: isActive ? null : () => _setActive(p.id),
+                          onEdit: () => _openSheet(profile: p),
+                          onDelete: () => _delete(p),
+                          onFetchData: p.plantName.isNotEmpty
+                              ? () => _fetchData(p)
+                              : null,
+                          isFetching: _fetchingIds.contains(p.id),
+                        );
+                      }),
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 }

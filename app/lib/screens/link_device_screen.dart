@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/app_state_provider.dart';
+import '../widgets/double_back_press_wrapper.dart';
 
 class LinkDeviceScreen extends StatefulWidget {
   const LinkDeviceScreen({super.key});
@@ -97,60 +98,62 @@ class _LinkDeviceScreenState extends State<LinkDeviceScreen> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      backgroundColor: colors.surfaceContainerHighest,
-      resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          // prevents overflow when keyboard opens
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(
-                height: 48,
-              ), // top spacing replaces mainAxisAlignment center
-              Icon(Icons.sensors, size: 72, color: colors.primary),
-              const SizedBox(height: 24),
-              Text(
-                'Link Your Device',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
+    return DoubleBackPressWrapper(
+      child: Scaffold(
+        backgroundColor: colors.surfaceContainerHighest,
+        resizeToAvoidBottomInset: true,
+        body: SafeArea(
+          child: SingleChildScrollView(
+            // prevents overflow when keyboard opens
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(
+                  height: 48,
+                ), // top spacing replaces mainAxisAlignment center
+                Icon(Icons.sensors, size: 72, color: colors.primary),
+                const SizedBox(height: 24),
+                Text(
+                  'Link Your Device',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Enter the Device UUID printed on the sticker\n'
-                'on your SISS hardware unit.',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _controller,
-                autocorrect: false,
-                enableSuggestions: false,
-                textCapitalization: TextCapitalization.none,
-                decoration: InputDecoration(
-                  labelText: 'Device UUID',
-                  hintText: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-                  border: const OutlineInputBorder(),
-                  errorText: _error,
+                const SizedBox(height: 8),
+                Text(
+                  'Enter the Device UUID printed on the sticker\n'
+                  'on your SISS hardware unit.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
                 ),
-              ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _isLoading ? null : _linkDevice,
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Link Device'),
-              ),
-            ],
+                const SizedBox(height: 32),
+                TextField(
+                  controller: _controller,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textCapitalization: TextCapitalization.none,
+                  decoration: InputDecoration(
+                    labelText: 'Device UUID',
+                    hintText: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+                    border: const OutlineInputBorder(),
+                    errorText: _error,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _isLoading ? null : _linkDevice,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Link Device'),
+                ),
+              ],
+            ),
           ),
         ),
       ),

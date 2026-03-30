@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/notification_service.dart';
+import '../widgets/double_back_press_wrapper.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -379,71 +380,73 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bg,
-      body: SafeArea(
-        child: Scrollbar(
-          controller: _scrollController,
-          thumbVisibility: false,
-          child: SingleChildScrollView(
+    return DoubleBackPressWrapper(
+      child: Scaffold(
+        backgroundColor: _bg,
+        body: SafeArea(
+          child: Scrollbar(
             controller: _scrollController,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 48),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
-                child: Column(
-                  children: [
-                    // App icon
-                    ClipOval(
-                      child: Image.asset(
-                        'assets/icon/try1.jpg',
-                        width: 58,
-                        height: 58,
-                        fit: BoxFit.cover,
+            thumbVisibility: false,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 48),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: Column(
+                    children: [
+                      // App icon
+                      ClipOval(
+                        child: Image.asset(
+                          'assets/icon/try1.jpg',
+                          width: 58,
+                          height: 58,
+                          fit: BoxFit.cover,
+                        ),
                       ),
-                    ),
 
-                    const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                    // Flush card
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TabBar(
-                          controller: _tabController,
-                          tabs: const [
-                            Tab(text: 'Sign In'),
-                            Tab(text: 'Sign Up'),
-                          ],
-                          labelStyle: const TextStyle(
-                            fontFamily: 'Poppins',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
+                      // Flush card
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TabBar(
+                            controller: _tabController,
+                            tabs: const [
+                              Tab(text: 'Sign In'),
+                              Tab(text: 'Sign Up'),
+                            ],
+                            labelStyle: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                            unselectedLabelStyle: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                            labelColor: _text,
+                            unselectedLabelColor: _text.withValues(alpha: 0.35),
+                            indicatorColor: _button,
+                            indicatorWeight: 2.5,
+                            dividerColor: _text.withValues(alpha: 0.08),
+                            overlayColor: WidgetStateProperty.all(
+                              _button.withValues(alpha: 0.06),
+                            ),
                           ),
-                          unselectedLabelStyle: const TextStyle(
-                            fontFamily: 'Poppins',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
+                          AnimatedBuilder(
+                            animation: _tabController,
+                            builder: (context, _) => IndexedStack(
+                              index: _tabController.index,
+                              children: [_buildSignInTab(), _buildSignUpTab()],
+                            ),
                           ),
-                          labelColor: _text,
-                          unselectedLabelColor: _text.withValues(alpha: 0.35),
-                          indicatorColor: _button,
-                          indicatorWeight: 2.5,
-                          dividerColor: _text.withValues(alpha: 0.08),
-                          overlayColor: WidgetStateProperty.all(
-                            _button.withValues(alpha: 0.06),
-                          ),
-                        ),
-                        AnimatedBuilder(
-                          animation: _tabController,
-                          builder: (context, _) => IndexedStack(
-                            index: _tabController.index,
-                            children: [_buildSignInTab(), _buildSignUpTab()],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

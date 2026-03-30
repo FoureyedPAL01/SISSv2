@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../widgets/double_back_press_wrapper.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -28,91 +29,89 @@ class MoreScreen extends StatelessWidget {
         label: 'Device Management',
         route: '/device',
       ),
-      _MoreItem(
-        icon: Icons.tune,
-        label: 'Preferences',
-        route: '/preferences',
-      ),
+      _MoreItem(icon: Icons.tune, label: 'Preferences', route: '/preferences'),
       _MoreItem(icon: Icons.settings, label: 'Settings', route: '/settings'),
     ];
 
-    return Material(
-      type: MaterialType.transparency,
-      child: Container(
-        color: bgColor,
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 40),
-                color: colors.surfaceContainerHighest,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ClipOval(
-                      child: Image.asset(
-                        'assets/icon/try1.jpg',
-                        width: 88,
-                        height: 88,
-                        fit: BoxFit.cover,
+    return DoubleBackPressWrapper(
+      child: Material(
+        type: MaterialType.transparency,
+        child: Container(
+          color: bgColor,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  color: colors.surfaceContainerHighest,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ClipOval(
+                        child: Image.asset(
+                          'assets/icon/try1.jpg',
+                          width: 88,
+                          height: 88,
+                          fit: BoxFit.cover,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      'SISS',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: colors.onSurface,
+                      const SizedBox(height: 14),
+                      Text(
+                        'SISS',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: colors.onSurface,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Divider(
-                height: 1,
-                thickness: 1,
-                color: colors.outline.withValues(alpha: 0.3),
+              SliverToBoxAdapter(
+                child: Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: colors.outline.withValues(alpha: 0.3),
+                ),
               ),
-            ),
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, i) {
-                if (i.isOdd) {
-                  return Divider(
-                    height: 1,
-                    indent: 56,
-                    color: colors.outline.withValues(alpha: 0.3),
-                  );
-                }
+              SliverList(
+                delegate: SliverChildBuilderDelegate((context, i) {
+                  if (i.isOdd) {
+                    return Divider(
+                      height: 1,
+                      indent: 56,
+                      color: colors.outline.withValues(alpha: 0.3),
+                    );
+                  }
 
-                final item = items[i ~/ 2];
-                return ListTile(
-                  leading: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
+                  final item = items[i ~/ 2];
+                  return ListTile(
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(item.icon, color: colors.primary, size: 20),
                     ),
-                    child: Icon(item.icon, color: colors.primary, size: 20),
-                  ),
-                  title: Text(
-                    item.label,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  trailing: Icon(
-                    Icons.chevron_right,
-                    color: colors.onSurface.withValues(alpha: 0.35),
-                  ),
-                  onTap: () => context.go(item.route),
-                );
-              }, childCount: items.length * 2 - 1),
-            ),
-          ],
+                    title: Text(
+                      item.label,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: colors.onSurface.withValues(alpha: 0.35),
+                    ),
+                    onTap: () => context.go(item.route),
+                  );
+                }, childCount: items.length * 2 - 1),
+              ),
+            ],
+          ),
         ),
       ),
     );
