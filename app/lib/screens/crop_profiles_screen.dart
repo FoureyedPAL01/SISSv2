@@ -23,6 +23,7 @@ class _Profile {
   final String name;
   final String plantName;
   final double minMoisture;
+  final int pwmDuty;
   final DateTime? perenualCachedAt;
   final Map<String, dynamic>? perenualData;
 
@@ -31,6 +32,7 @@ class _Profile {
     required this.name,
     required this.plantName,
     required this.minMoisture,
+    this.pwmDuty = 200,
     this.perenualCachedAt,
     this.perenualData,
   });
@@ -40,6 +42,7 @@ class _Profile {
     name: (m['name'] as String?) ?? 'Unnamed Profile',
     plantName: (m['plant_name'] as String?) ?? '',
     minMoisture: (m['min_moisture'] as num?)?.toDouble() ?? 30.0,
+    pwmDuty: (m['pwm_duty'] as num?)?.toInt() ?? 200,
     perenualCachedAt: m['perenual_cached_at'] != null
         ? DateTime.parse(m['perenual_cached_at'] as String).toLocal()
         : null,
@@ -82,7 +85,7 @@ class _CropProfilesScreenState extends State<CropProfilesScreen>
           await Supabase.instance.client
                   .from('crop_profiles')
                   .select(
-                    'id, name, plant_name, min_moisture, perenual_cached_at, perenual_data',
+                    'id, name, plant_name, min_moisture, pwm_duty, perenual_cached_at, perenual_data',
                   )
                   .eq('user_id', userId)
                   .order('id', ascending: true)
@@ -756,6 +759,7 @@ class _ProfileSheetState extends State<_ProfileSheet> {
   final _plantController = TextEditingController();
 
   double _threshold = 30.0;
+  double _pwmDuty = 200.0;
   bool _saving = false;
 
   // Inline validation state — replaces Form validator.
@@ -766,10 +770,11 @@ class _ProfileSheetState extends State<_ProfileSheet> {
   @override
   void initState() {
     super.initState();
-    if (_isEdit) {
+    if (_isEdit && widget.existing != null) {
       _nameController.text = widget.existing!.name;
       _plantController.text = widget.existing!.plantName;
       _threshold = widget.existing!.minMoisture;
+      _pwmDuty = widget.existing!.pwmDuty.toDouble();
     }
     // Clear the name error as soon as the user types.
     _nameController.addListener(() {
@@ -814,6 +819,7 @@ class _ProfileSheetState extends State<_ProfileSheet> {
               'name': name,
               'plant_name': plantName.isNotEmpty ? plantName : null,
               'min_moisture': _threshold,
+              'pwm_duty': _pwmDuty.round(),
               if (plantChanged) 'perenual_data': null,
               if (plantChanged) 'perenual_species_id': null,
               if (plantChanged) 'perenual_cached_at': null,
@@ -825,6 +831,7 @@ class _ProfileSheetState extends State<_ProfileSheet> {
           'name': name,
           'plant_name': plantName.isNotEmpty ? plantName : null,
           'min_moisture': _threshold,
+          'pwm_duty': _pwmDuty.round(),
         });
       }
 
@@ -953,6 +960,44 @@ class _ProfileSheetState extends State<_ProfileSheet> {
                   ],
                 ),
               ),
+            ),
+            const SizedBox(height: 16),
+
+            // PWM Duty setting
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pump Speed (PWM)',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Higher PWM = faster water flow. Set to 0 to disable pump.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+                Slider(
+                  value: _pwmDuty,
+                  min: 0,
+                  max: 255,
+                  divisions: 255,
+                  label: '${(_pwmDuty * 100 / 255).round()}%',
+                  onChanged: (v) => setState(() => _pwmDuty = v),
+                ),
+                Center(
+                  child: Text(
+                    'PWM: ${_pwmDuty.round()} (${(_pwmDuty * 100 / 255).round()}%)',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
 

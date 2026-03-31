@@ -992,6 +992,7 @@ class _DashboardPumpCardState extends State<_DashboardPumpCard> {
   Duration _elapsed = Duration.zero;
   Timer? _tickTimer;
   Timer? _safetyTimer;
+  int _pwmValue = 200; // Default PWM duty cycle (0-255), ~78%
 
   String get _elapsedLabel {
     final s = _elapsed.inSeconds;
@@ -1041,12 +1042,17 @@ class _DashboardPumpCardState extends State<_DashboardPumpCard> {
     super.dispose();
   }
 
-  Future<bool> _sendCommand(String deviceId, String command) async {
+  Future<bool> _sendCommand(String deviceId, String command, {int? pwm}) async {
     try {
-      context.read<MqttService>().sendPumpCommand(deviceId, command);
+      context.read<MqttService>().sendPumpCommand(
+        deviceId,
+        command,
+        pwmValue: pwm,
+      );
       await Supabase.instance.client.from('device_commands').insert({
         'device_id': deviceId,
         'command': command,
+        if (pwm != null) 'pwm': pwm,
       });
       return true;
     } catch (_) {
@@ -1105,7 +1111,7 @@ class _DashboardPumpCardState extends State<_DashboardPumpCard> {
       );
       if (!ok) return;
       setState(() => _isChanging = true);
-      final sent = await _sendCommand(deviceId, 'pump_on');
+      final sent = await _sendCommand(deviceId, 'pump_on', pwm: _pwmValue);
       if (!mounted) return;
       if (sent) {
         setState(() {
@@ -1152,95 +1158,137 @@ class _DashboardPumpCardState extends State<_DashboardPumpCard> {
     return GestureDetector(
       onTap: _isChanging ? null : _toggle,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: widget.comp,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: btnColor, width: 1.5),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'PUMP',
-                    style: TextStyle(
-                      color: widget.muted,
-                      fontSize: 10,
-                      letterSpacing: 0.8,
-                      fontFamily: 'Poppins',
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    _isRunning ? 'RUNNING' : 'IDLE',
-                    style: TextStyle(
-                      color: widget.text,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Poppins',
-                    ),
-                  ),
-                  if (_isRunning) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      _elapsedLabel,
-                      style: TextStyle(
-                        color: colorOn,
-                        fontSize: 11,
-                        fontFamily: 'Poppins',
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 3),
-                  Text(
-                    _isRunning ? 'Tap to stop' : 'Tap to start',
-                    style: TextStyle(
-                      color: widget.muted,
-                      fontSize: 10,
-                      fontFamily: 'Poppins',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: btnColor,
-                boxShadow: [
-                  BoxShadow(
-                    color: btnColor.withValues(alpha: _isRunning ? 0.45 : 0.25),
-                    blurRadius: _isRunning ? 16 : 8,
-                    spreadRadius: _isRunning ? 3 : 1,
-                  ),
-                ],
-              ),
-              child: _isChanging
-                  ? const Center(
-                      child: SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2.5,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'PUMP',
+                        style: TextStyle(
+                          color: widget.muted,
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                          fontFamily: 'Poppins',
                         ),
                       ),
-                    )
-                  : const Icon(
-                      Icons.power_settings_new_rounded,
-                      color: Colors.white,
-                      size: 26,
-                    ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _isRunning ? 'RUNNING' : 'IDLE',
+                        style: TextStyle(
+                          color: widget.text,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
+                      if (_isRunning) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          _elapsedLabel,
+                          style: TextStyle(
+                            color: colorOn,
+                            fontSize: 11,
+                            fontFamily: 'Poppins',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 3),
+                      Text(
+                        _isRunning ? 'Tap to stop' : 'Tap to start',
+                        style: TextStyle(
+                          color: widget.muted,
+                          fontSize: 10,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: btnColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: btnColor.withValues(
+                          alpha: _isRunning ? 0.45 : 0.25,
+                        ),
+                        blurRadius: _isRunning ? 16 : 8,
+                        spreadRadius: _isRunning ? 3 : 1,
+                      ),
+                    ],
+                  ),
+                  child: _isChanging
+                      ? const Center(
+                          child: SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.power_settings_new_rounded,
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text(
+                  'Speed',
+                  style: TextStyle(
+                    color: widget.muted,
+                    fontSize: 10,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+                Expanded(
+                  child: Slider(
+                    value: _pwmValue.toDouble(),
+                    min: 0,
+                    max: 255,
+                    divisions: 255,
+                    onChanged: _isRunning
+                        ? null
+                        : (val) {
+                            setState(() => _pwmValue = val.round());
+                          },
+                  ),
+                ),
+                Text(
+                  '${((_pwmValue * 100) / 255).round()}%',
+                  style: TextStyle(
+                    color: widget.text,
+                    fontSize: 12,
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

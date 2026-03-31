@@ -121,16 +121,19 @@ async function resolveUserId(record: AlertRecord): Promise<string | null> {
 
 serve(async (req: Request) => {
   try {
-    const body = await req.json();
-    console.log(
-      "[send-alert-notification] Webhook payload:",
-      JSON.stringify(body),
-    );
+    // 1. Get raw text to prevent crashing on empty/bad bodies
+    const rawBody = await req.text();
+    if (!rawBody) throw new Error("Empty request body");
 
-    const record = body.record as AlertRecord | undefined;
-    if (!record) {
-      return new Response("No record in payload", { status: 400 });
-    }
+    const payload = JSON.parse(rawBody);
+    console.log("[send-alert-notification] Payload received:", rawBody);
+
+    // 2. Supabase webhooks wrap the data in a 'record' field
+    // We check both payload.record (webhook) and payload (direct call)
+    const record = payload.record || payload;
+
+    const { device_id, message, alert_type } = record;
+    console.log(`[send-alert-notification] Processing alert for device: ${device_id}, type: ${alert_type}`);
 
     const userId = await resolveUserId(record);
     if (!userId) {

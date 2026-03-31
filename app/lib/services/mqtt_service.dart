@@ -20,16 +20,16 @@ class MqttService {
     // Pump control falls back to the Supabase device_commands table.
     if (kIsWeb) return;
 
-    final host     = dotenv.env['HIVEMQ_HOST']!;
-    final port     = int.parse(dotenv.env['HIVEMQ_PORT'] ?? '8883');
-    final user     = dotenv.env['HIVEMQ_USER']!;
+    final host = dotenv.env['HIVEMQ_HOST']!;
+    final port = int.parse(dotenv.env['HIVEMQ_PORT'] ?? '8883');
+    final user = dotenv.env['HIVEMQ_USER']!;
     final password = dotenv.env['HIVEMQ_PASSWORD']!;
 
     final clientId = 'siss-flutter-${DateTime.now().millisecondsSinceEpoch}';
 
     _client = MqttServerClient(host, clientId)
-      ..port            = port
-      ..secure          = true
+      ..port = port
+      ..secure = true
       ..keepAlivePeriod = 30
       ..logging(on: false)
       ..setProtocolV311()
@@ -51,13 +51,21 @@ class MqttService {
     }
   }
 
-  void sendPumpCommand(String deviceId, String command) {
-    if (!isConnected) return; // silently skip; caller uses Supabase fallback
+  void sendPumpCommand(String deviceId, String command, {int? pwmValue}) {
+    if (!isConnected || _client == null)
+      return; // silently skip; caller uses Supabase fallback
 
-    final topic   = 'devices/$deviceId/control';
-    final payload = '{"command":"$command"}';
+    final topic = 'devices/$deviceId/control';
+    final String payload;
+    final pwm = pwmValue ?? 200; // Default to 200 (~78%) if not specified
+
+    payload = '{"command":"$command","pwm":$pwm}';
+
     final builder = MqttClientPayloadBuilder()..addString(payload);
-    _client!.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
+    final payloadBytes = builder.payload;
+    if (payloadBytes == null) return;
+
+    _client!.publishMessage(topic, MqttQos.atLeastOnce, payloadBytes);
   }
 
   void _onDisconnected() {
