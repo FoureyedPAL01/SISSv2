@@ -15,6 +15,9 @@ DHT dht(PIN_DHT, DHT11);
 volatile long flowPulseCount = 0;
 void IRAM_ATTR flowISR() { flowPulseCount++; }
 
+// PWM helper — uses ESP32 Core 3.x ledcWrite API
+inline void setPumpPwm(int duty) { ledcWrite(PIN_PUMP_PWM, duty); }
+
 // State
 CropProfile cropProfile;
 bool pumpRunning = false;
@@ -50,7 +53,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   // Handle PWM-only command (set speed without starting pump)
   if (cmd == "set_pwm" && doc["value"].is<int>()) {
     currentPwmDuty = constrain(doc["value"].as<int>(), 0, 255);
-    analogWrite(PIN_PUMP_PWM, currentPwmDuty);
+    setPumpPwm(currentPwmDuty);
     Serial.printf("[MQTT] PWM set to %d\n", currentPwmDuty);
     return;
   }
@@ -62,7 +65,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     manualStartMs = millis();
     
     // Use PWM control instead of relay
-    analogWrite(PIN_PUMP_PWM, currentPwmDuty);
+    setPumpPwm(currentPwmDuty);
     Serial.printf("[MQTT] Pump ON with PWM %d (~%d%%)\n", currentPwmDuty, (currentPwmDuty * 100) / 255);
     
     currentPumpLogId = postPumpLogStart(analogReadMoisture(), "manual");
@@ -81,7 +84,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     }
     manualOverride = false;
     pumpRunning = false;
-    analogWrite(PIN_PUMP_PWM, 0);  // PWM 0 = pump OFF
+    setPumpPwm(0);  // PWM 0 = pump OFF
     Serial.println("[MQTT] Pump OFF");
 
     // Alert: manual pump stopped
@@ -184,12 +187,12 @@ void connectMQTT() {
 void setup() {
   Serial.begin(115200);
   dht.begin();
-  ledcSetup(0, 1000, 8);  // PWM setup for ESP32
-  ledcAttachPin(PIN_PUMP_PWM, 0);
+  ledcAttach(PIN_PUMP_PWM, 1000, 8);  // ESP32 Core 3.x API
   pinMode(PIN_RAIN_SENSOR, INPUT);
   pinMode(PIN_SOIL_MOISTURE, INPUT);
-  attachInterrupt(digitalPinToInterrupt(PIN_FLOW_SENSOR), flowISR, RISING);
-  analogWrite(PIN_PUMP_PWM, 0);  // Ensure pump is off on boot
+  pinMode(PIN_FLOW_SENSOR, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(PIN_FLOW_SENSOR), flowISR, FALLING);
+  setPumpPwm(0);  // Ensure pump is off on boot
 
   // Run calibration mode if enabled
   if (CALIBRATION_MODE) {
@@ -226,7 +229,7 @@ void loop() {
     }
     manualOverride = false;
     pumpRunning = false;
-    analogWrite(PIN_PUMP_PWM, 0);
+    setPumpPwm(0);
     Serial.println("[System] Pump auto-stopped after 2 mins");
 
     // Alert: pump stopped by safety limit
@@ -300,9 +303,9 @@ void loop() {
           Serial.println("[Alert] auto_irrigation_started sent");
 
           pumpRunning = true;
-          analogWrite(PIN_PUMP_PWM, autoPwmDuty);  // PWM control
+          setPumpPwm(autoPwmDuty);  // PWM control
           delay((unsigned long)cropProfile.irrigateSecs * 1000UL); // Block for duration
-          analogWrite(PIN_PUMP_PWM, 0);  // PWM 0 = OFF
+          setPumpPwm(0);  // PWM 0 = OFF
           pumpRunning = false;
           
           int afterMoisture = analogReadMoisture();
