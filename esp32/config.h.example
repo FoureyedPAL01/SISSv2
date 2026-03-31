@@ -26,7 +26,6 @@
 #define MQTT_USER         "YOUR_MQTT_USERNAME"
 #define MQTT_PASSWORD     "YOUR_MQTT_PASSWORD"
 #define MQTT_TOPIC_SUB    "devices/" DEVICE_ID "/control"
-#define MQTT_TOPIC_PUB    "devices/" DEVICE_ID "/status"
 
 // -- Open-Meteo location ---------------------------------------------------
 // GPS coordinates of the location where the plant is
@@ -38,11 +37,35 @@
 #define PIN_DHT            4   // DHT11 data pin
 #define PIN_RAIN_SENSOR    35  // Digital input
 #define PIN_FLOW_SENSOR    18  // Interrupt input (YF-S201)
-#define PIN_PUMP_RELAY     26  // Digital output to relay module
 
-// -- Default thresholds ----------------------------------------------------
+// -- Soil Moisture Calibration -----------------------------------------------
+// ADC values for your specific sensor - run calibration mode to measure these
+// Higher raw value = drier soil
+#define MOISTURE_AIR_RAW    3200  // ADC reading when sensor in dry air (0% moisture)
+#define MOISTURE_WATER_RAW  1100  // ADC reading when sensor in water (100% moisture)
+
+// -- Rain Sensor Configuration -----------------------------------------------
+// true  = sensor outputs HIGH when wet (Active HIGH) - rare
+// false = sensor outputs LOW when wet (Active LOW) - most common
+#define RAIN_SENSOR_INVERT  false  // Active LOW (most YL-38 modules)
+
+// -- Calibration Mode ---------------------------------------------------------
+// Set to true to print raw sensor values every second for calibration
+// Set to false for normal operation after calibration is complete
+#define CALIBRATION_MODE    true   // Set to false after calibration
+
+// -- PWM Pump (D4184 MOSFET) -----------------------------------------------
+// D4184 MOSFET module connected to GPIO pin for variable speed control
+#define PIN_PUMP_PWM       2   // GPIO2 - PWM output to D4184 MOSFET
+#define DEFAULT_PWM_DUTY   200 // Default PWM duty cycle (0-255), ~78%
+
+// -- Default thresholds (Fallback) -----------------------------------------
 // Used if no crop profile is found in Supabase on boot
 #define DEFAULT_MOISTURE_LOW  30  // start watering when moisture% falls below this
-#define DEFAULT_MOISTURE_HIGH 70  // stop watering when moisture% rises above this
-#define DEFAULT_IRRIGATE_SECS 60  // seconds to run the pump per cycle
-#define DEFAULT_RAIN_SKIP_PCT 60  // skip irrigation if rain probability exceeds this
+#define DEFAULT_IRRIGATE_SEC  60  // seconds to run the pump per cycle
+#define DEFAULT_RAIN_SKIP     60  // skip irrigation if rain probability exceeds this
+
+// -- Alert Cooldowns -------------------------------------------------------
+// Prevents flooding the alerts table for conditions that persist across loops.
+// Pump alerts and rain alerts are event-based and do NOT use cooldowns.
+#define ALERT_COOLDOWN_SOIL_MS   600000UL  // 10 min — soil_dry

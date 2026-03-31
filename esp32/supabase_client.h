@@ -9,6 +9,7 @@ struct CropProfile {
   int moistureLow;
   int irrigateSecs;
   int rainSkipPct;
+  int pwmDuty;  // PWM duty cycle (0-255), defaults to 200 (~78%)
 };
 
 void _addSupabaseHeaders(HTTPClient& http) {
@@ -88,12 +89,12 @@ void patchPumpLogEnd(long logId, int moistureAfter, int durationSecs, float wate
 
 // Relational Fetch: Gets crop_profiles data directly through the device relation!
 CropProfile fetchCropProfile() {
-  CropProfile profile = {DEFAULT_MOISTURE_LOW, DEFAULT_IRRIGATE_SEC, DEFAULT_RAIN_SKIP};
+  CropProfile profile = {DEFAULT_MOISTURE_LOW, DEFAULT_IRRIGATE_SEC, DEFAULT_RAIN_SKIP, DEFAULT_PWM_DUTY};
   WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
   
-  String url = String(SUPABASE_URL) + "/rest/v1/devices?id=eq." + String(DEVICE_ID) + "&select=crop_profiles(moisture_threshold_low,irrigation_duration_s,weather_sensitivity)";
+  String url = String(SUPABASE_URL) + "/rest/v1/devices?id=eq." + String(DEVICE_ID) + "&select=crop_profiles(moisture_threshold_low,irrigation_duration_s,weather_sensitivity,pwm_duty)";
   http.begin(client, url);
   _addSupabaseHeaders(http);
 
@@ -104,6 +105,7 @@ CropProfile fetchCropProfile() {
       profile.moistureLow = doc[0]["crop_profiles"]["moisture_threshold_low"].as<int>();
       profile.irrigateSecs = doc[0]["crop_profiles"]["irrigation_duration_s"].as<int>();
       profile.rainSkipPct = doc[0]["crop_profiles"]["weather_sensitivity"].as<int>();
+      profile.pwmDuty = doc[0]["crop_profiles"]["pwm_duty"].as<int>();
     }
   }
   http.end();
@@ -117,5 +119,29 @@ void updateDeviceStatus(String status) {
   http.begin(client, String(SUPABASE_URL) + "/rest/v1/devices?id=eq." + String(DEVICE_ID));
   _addSupabaseHeaders(http);
   http.PATCH("{\"status\":\"" + status + "\"}");
+  http.end();
+}
+
+// ── Inserts one row into the alerts table. ─────────────────────────────────
+// The send-alert-notification Edge Function picks this up via a webhook
+// and fires an FCM push to the device owner's phone.
+// alertTypes: "pump_on", "pump_off", "pump_timeout",
+//             "rain_started", "rain_stopped", "soil_dry",
+//             "auto_irrigation_started", "auto_irrigation_stopped"
+void postAlert(String alertType, String message) {
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  http.begin(client, String(SUPABASE_URL) + "/rest/v1/alerts");
+  _addSupabaseHeaders(http);
+
+  JsonDocument doc;
+  doc["device_id"]  = DEVICE_ID;
+  doc["alert_type"] = alertType;
+  doc["message"]    = message;
+
+  String payload;
+  serializeJson(doc, payload);
+  http.POST(payload);
   http.end();
 }
