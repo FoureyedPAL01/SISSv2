@@ -208,7 +208,7 @@ class AppLayoutScaffold extends StatelessWidget {
     } else if (location.startsWith('/more')) {
       appBarTitle = 'More';
     } else {
-      appBarTitle = 'SISS';
+      appBarTitle = 'RootSync';
     }
 
     return Scaffold(

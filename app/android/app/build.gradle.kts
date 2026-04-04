@@ -13,7 +13,7 @@ plugins {
 }
 
 android {
-    namespace = "com.siss.smartirrigation"
+    namespace = "com.rootsync.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -28,7 +28,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.siss.smartirrigation"
+        applicationId = "com.rootsync.app"
         minSdk = flutter.minSdkVersion
         targetSdk = 34
         versionCode = flutter.versionCode

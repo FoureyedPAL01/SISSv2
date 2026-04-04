@@ -1,16 +1,6 @@
 // lib/screens/water_usage_screen.dart
 //
-// Changes from previous version:
-//  1. Converted to StatefulWidget — fetches real data from Supabase pump_logs.
-//  2. Added 4 stat blocks (Total Water, Avg Daily, Total Runtime, Avg Runtime/Day)
-//     covering the last 7 days, placed above the weekly trend chart.
-//  3. Added Pump Runtime bar chart (minutes/day) below the weekly trend chart.
-//  4. Replaced old breakdown table with a styled Daily Log table showing
-//     Date | Water Used | Runtime | Efficiency (coloured progress bar + %).
-//  5. Daily Log shows up to the last 14 days; rows older than 14 days are
-//     excluded client-side (the server-side purge job handles actual deletion).
-//  6. Efficiency score formula: 40 % moisture improvement + 40 % water-rate
-//     score + 20 % rain-contribution bonus, clamped 0–100.
+// Water usage tracking with daily totals, trend charts, and activity log.
 
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -22,13 +12,13 @@ import '../theme.dart';
 import '../widgets/double_back_press_wrapper.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Data model: one calendar day's aggregated pump activity
+// Data model
 // ─────────────────────────────────────────────────────────────────────────────
 class _DailyLog {
   final DateTime date;
-  final double waterLitres; // total water used that day
-  final int runtimeMinutes; // total pump-on time in minutes
-  final double efficiency; // 0–100
+  final double waterLitres;
+  final int runtimeMinutes;
+  final double efficiency;
 
   const _DailyLog({
     required this.date,
@@ -38,16 +28,13 @@ class _DailyLog {
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Internal accumulator — collects multiple pump_log rows for the same day
-// ─────────────────────────────────────────────────────────────────────────────
 class _Acc {
   final DateTime date;
   double water = 0;
   int runtimeSecs = 0;
   bool rain = false;
-  final List<double> mbList = []; // moisture_before samples
-  final List<double> maList = []; // moisture_after  samples
+  final List<double> mbList = [];
+  final List<double> maList = [];
   _Acc(this.date);
 }
 
@@ -64,9 +51,6 @@ class WaterUsageScreen extends StatefulWidget {
 class _WaterUsageScreenState extends State<WaterUsageScreen> {
   bool _loading = true;
   String? _error;
-
-  // _allLogs  → last 14 days (for Daily Log table)
-  // _weekFull → exactly 7 slots (Mon–Sun of last 7 days, zero-filled if no data)
   List<_DailyLog> _allLogs = [];
   List<_DailyLog> _weekFull = [];
 
@@ -76,7 +60,6 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
     _fetchData();
   }
 
-  // ── Efficiency formula ────────────────────────────────────────────────────
   double _calcEfficiency({
     required double waterLitres,
     required int runtimeMinutes,
@@ -97,11 +80,9 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
     }
 
     final rainBonus = rainDetected ? 100.0 : 0.0;
-
     return (0.4 * mScore + 0.4 * wScore + 0.2 * rainBonus).clamp(0.0, 100.0);
   }
 
-  // ── Fetch + aggregate pump_logs ───────────────────────────────────────────
   Future<void> _fetchData() async {
     setState(() {
       _loading = true;
@@ -111,9 +92,7 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
     try {
       final deviceId = context.read<AppStateProvider>().deviceId;
       if (deviceId == null) {
-        setState(() {
-          _loading = false;
-        });
+        setState(() => _loading = false);
         return;
       }
 
@@ -131,16 +110,13 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
                   .order('pump_on_at', ascending: true)
               as List<dynamic>;
 
-      // ── Aggregate each pump-log row into its calendar day ─────────────────
       final Map<String, _Acc> acc = {};
 
       for (final dynamic r in rows) {
         final row = r as Map<String, dynamic>;
         final dt = DateTime.parse(row['pump_on_at'] as String).toLocal();
         final key =
-            '${dt.year}-'
-            '${dt.month.toString().padLeft(2, '0')}-'
-            '${dt.day.toString().padLeft(2, '0')}';
+            '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 
         acc.putIfAbsent(key, () => _Acc(DateTime(dt.year, dt.month, dt.day)));
         final a = acc[key]!;
@@ -156,7 +132,6 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
         }
       }
 
-      // ── Convert accumulators → _DailyLog objects ──────────────────────────
       double avg(List<double> l) =>
           l.isEmpty ? 0 : l.reduce((x, y) => x + y) / l.length;
 
@@ -179,7 +154,6 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
               .toList()
             ..sort((a, b) => a.date.compareTo(b.date));
 
-      // ── Build 7-slot week (zero-filled for empty days) ─────────────────
       final today = DateTime.now();
       final weekFull = List.generate(7, (i) {
         final day = DateTime(
@@ -216,13 +190,10 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
     }
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final appColors = Theme.of(context).extension<AppColors>()!;
-    final textTheme = Theme.of(context).textTheme;
-    final volUnit = context.watch<AppStateProvider>().volumeUnit;
 
     return DoubleBackPressWrapper(
       child: Scaffold(
@@ -234,18 +205,12 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
               ? const Center(child: CircularProgressIndicator())
               : _error != null
               ? _buildError(colors)
-              : _buildBody(
-                  colors: colors,
-                  appColors: appColors,
-                  textTheme: textTheme,
-                  volUnit: volUnit,
-                ),
+              : _buildBody(colors: colors, appColors: appColors),
         ),
       ),
     );
   }
 
-  // ── Error state ───────────────────────────────────────────────────────────
   Widget _buildError(ColorScheme colors) => Center(
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -263,384 +228,559 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
     ),
   );
 
-  // ── Main content ──────────────────────────────────────────────────────────
   Widget _buildBody({
     required ColorScheme colors,
     required AppColors appColors,
-    required TextTheme textTheme,
-    required String volUnit,
   }) {
-    // ── 7-day aggregate values for stat blocks ────────────────────────────
+    final muted = colors.onSurface.withValues(alpha: 0.5);
+    final volUnit = context.read<AppStateProvider>().volumeUnit;
+
+    // Aggregate stats
     final totalL = _weekFull.fold(0.0, (s, l) => s + l.waterLitres);
     final totalM = _weekFull.fold(0, (s, l) => s + l.runtimeMinutes);
     final avgDayL = totalL / 7.0;
-    final avgDayM = totalM ~/ 7;
-
-    final totalDisp = UnitConverter.formatVolume(totalL, volUnit);
-    final avgDayDisp = UnitConverter.formatVolume(avgDayL, volUnit);
-    final totalRtHrs = totalM / 60.0;
-
-    // Muted text colour (semi-transparent on-surface)
-    final muted = colors.onSurface.withValues(alpha: 0.5);
-
-    final spots = _weekFull
-        .asMap()
-        .entries
-        .map((e) => FlSpot(e.key.toDouble(), e.value.efficiency.clamp(0, 100)))
-        .toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
       children: [
-        // ── Stat cards ──────────────────────────────────────────────────
-        Row(
-          children: [
-            Expanded(
-              child: _StatCard(
-                icon: Icons.water_drop,
-                iconColor: appColors.infoBlue,
-                value: totalDisp,
-                label: 'TOTAL WATER (7d)',
-                colors: colors,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _StatCard(
-                icon: Icons.trending_up,
-                iconColor: AppTheme.teal,
-                value: avgDayDisp,
-                label: 'AVG DAILY',
-                colors: colors,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _StatCard(
-                icon: Icons.timer,
-                iconColor: const Color(0xFF7C3AED),
-                value: '${totalRtHrs.toStringAsFixed(1)} hrs',
-                label: 'TOTAL RUNTIME (7d)',
-                colors: colors,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _StatCard(
-                icon: Icons.access_time,
-                iconColor: const Color(0xFFF59E0B),
-                value: '$avgDayM min',
-                label: 'AVG RUNTIME/DAY',
-                colors: colors,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-
-        // ── Efficiency trend chart ──────────────────────────────────────
-        _ChartCard(
+        // Summary row
+        _SummaryRow(
+          totalWater: UnitConverter.formatVolume(totalL, volUnit),
+          avgDaily: UnitConverter.formatVolume(avgDayL, volUnit),
+          totalRuntime: '${(totalM / 60.0).toStringAsFixed(1)} hrs',
           colors: colors,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _ChartHeader(
-                icon: Icons.show_chart,
-                iconColor: appColors.infoBlue,
-                title: 'Efficiency Trend',
-                subtitle: 'Last 7 days',
-                colors: colors,
-                muted: muted,
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                height: 200,
-                child: LineChart(
-                  LineChartData(
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      getDrawingHorizontalLine: (_) => FlLine(
-                        color: muted.withValues(alpha: 0.25),
-                        strokeWidth: 1,
-                      ),
-                    ),
-                    titlesData: FlTitlesData(
-                      rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          interval: 1,
-                          getTitlesWidget: (v, _) {
-                            final i = v.toInt();
-                            if (i < 0 || i >= _weekFull.length) {
-                              return const SizedBox();
-                            }
-                            const abbr = [
-                              'Mo',
-                              'Tu',
-                              'We',
-                              'Th',
-                              'Fr',
-                              'Sa',
-                              'Su',
-                            ];
-                            return Text(
-                              abbr[_weekFull[i].date.weekday - 1],
-                              style: TextStyle(color: muted, fontSize: 11),
-                            );
-                          },
-                        ),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 36,
-                          getTitlesWidget: (v, _) => Text(
-                            v.toInt().toString(),
-                            style: TextStyle(color: muted, fontSize: 10),
-                          ),
-                        ),
-                      ),
-                    ),
-                    borderData: FlBorderData(show: false),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: spots,
-                        isCurved: true,
-                        color: appColors.infoBlue,
-                        barWidth: 3,
-                        isStrokeCapRound: true,
-                        dotData: const FlDotData(show: false),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          color: appColors.infoBlueBackground,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
         ),
         const SizedBox(height: 16),
 
-        // ── Pump Runtime bar chart ──────────────────────────────────────
-        _buildBarChart(colors: colors, muted: muted),
+        // Bar chart
+        _WeeklyBarChart(
+          weekFull: _weekFull,
+          colors: colors,
+          appColors: appColors,
+          muted: muted,
+          volUnit: volUnit,
+        ),
         const SizedBox(height: 16),
 
-        // ── Daily Log table ─────────────────────────────────────────────
-        _buildDailyLogTable(colors: colors, muted: muted, volUnit: volUnit),
+        // Daily log
+        _DailyLogTable(
+          allLogs: _allLogs,
+          colors: colors,
+          muted: muted,
+          volUnit: volUnit,
+        ),
       ],
     );
   }
+}
 
-  // ── Pump Runtime — Bar Chart ──────────────────────────────────────────────
-  Widget _buildBarChart({required ColorScheme colors, required Color muted}) {
-    const barColor = AppTheme.teal;
+// ─────────────────────────────────────────────────────────────────────────────
+// Summary row — 3 compact stat pills
+// ─────────────────────────────────────────────────────────────────────────────
 
-    final groups = _weekFull
-        .asMap()
-        .entries
-        .map(
-          (e) => BarChartGroupData(
-            x: e.key,
-            barRods: [
-              BarChartRodData(
-                toY: e.value.runtimeMinutes.toDouble(),
-                color: barColor,
-                width: 18,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(4),
-                ),
-              ),
-            ],
+class _SummaryRow extends StatelessWidget {
+  final String totalWater;
+  final String avgDaily;
+  final String totalRuntime;
+  final ColorScheme colors;
+
+  const _SummaryRow({
+    required this.totalWater,
+    required this.avgDaily,
+    required this.totalRuntime,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-        )
-        .toList();
-
-    final maxRuntime = _weekFull.isEmpty
-        ? 0
-        : _weekFull
-              .map((l) => l.runtimeMinutes)
-              .reduce((a, b) => a > b ? a : b);
-    final maxY = (maxRuntime * 1.35).ceilToDouble().clamp(
-      30.0,
-      double.infinity,
-    );
-
-    return _ChartCard(
-      colors: colors,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _ChartHeader(
-            icon: Icons.timer,
-            iconColor: barColor,
-            title: 'Pump Runtime per Day',
-            subtitle: 'Minutes',
+          _StatItem(
+            icon: Icons.water_drop_rounded,
+            value: totalWater,
+            label: 'Total (7d)',
+            color: const Color(0xFF4A90E2),
             colors: colors,
-            muted: muted,
           ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 180,
-            child: BarChart(
-              BarChartData(
-                maxY: maxY,
-                barGroups: groups,
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) => FlLine(
-                    color: muted.withValues(alpha: 0.25),
-                    strokeWidth: 1,
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                titlesData: FlTitlesData(
-                  rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (v, _) {
-                        final i = v.toInt();
-                        if (i < 0 || i >= _weekFull.length) {
-                          return const SizedBox();
-                        }
-                        const abbr = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-                        return Text(
-                          abbr[_weekFull[i].date.weekday - 1],
-                          style: TextStyle(color: muted, fontSize: 11),
-                        );
-                      },
-                    ),
-                  ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 36,
-                      getTitlesWidget: (v, _) => Text(
-                        v.toInt().toString(),
-                        style: TextStyle(color: muted, fontSize: 10),
-                      ),
-                    ),
-                  ),
-                ),
-                barTouchData: BarTouchData(
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipColor: (group) => colors.surface,
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) =>
-                        BarTooltipItem(
-                          '${rod.toY.toInt()} min',
-                          TextStyle(
-                            color: colors.onSurface,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                  ),
-                ),
-              ),
-            ),
+          _divider(colors),
+          _StatItem(
+            icon: Icons.show_chart_rounded,
+            value: avgDaily,
+            label: 'Avg/Day',
+            color: const Color(0xFF4CAF50),
+            colors: colors,
+          ),
+          _divider(colors),
+          _StatItem(
+            icon: Icons.timer_rounded,
+            value: totalRuntime,
+            label: 'Runtime (7d)',
+            color: const Color(0xFF7C3AED),
+            colors: colors,
           ),
         ],
       ),
     );
   }
 
-  // ── Daily Log Table ───────────────────────────────────────────────────────
-  Widget _buildDailyLogTable({
-    required ColorScheme colors,
-    required Color muted,
-    required String volUnit,
-  }) {
-    final rows = _allLogs.reversed.toList();
+  Widget _divider(ColorScheme colors) => Container(
+    height: 32,
+    width: 1,
+    color: colors.onSurface.withValues(alpha: 0.1),
+  );
+}
+
+class _StatItem extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color color;
+  final ColorScheme colors;
+
+  const _StatItem({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            color: colors.onSurface,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Poppins',
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            color: colors.onSurface.withValues(alpha: 0.5),
+            fontSize: 9,
+            fontFamily: 'Poppins',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Weekly bar chart — daily water usage
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WeeklyBarChart extends StatelessWidget {
+  final List<_DailyLog> weekFull;
+  final ColorScheme colors;
+  final AppColors appColors;
+  final Color muted;
+  final String volUnit;
+
+  const _WeeklyBarChart({
+    required this.weekFull,
+    required this.colors,
+    required this.appColors,
+    required this.muted,
+    required this.volUnit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (weekFull.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.bar_chart_rounded,
+                  color: appColors.infoBlue,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Daily Consumption',
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Poppins',
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.water_drop_outlined,
+                    size: 40,
+                    color: colors.onSurface.withValues(alpha: 0.2),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No water usage this week',
+                    style: TextStyle(
+                      color: colors.onSurface.withValues(alpha: 0.6),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Poppins',
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Start your pump to see daily consumption.',
+                    style: TextStyle(
+                      color: colors.onSurface.withValues(alpha: 0.4),
+                      fontSize: 12,
+                      fontFamily: 'Poppins',
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final maxY = weekFull
+        .map((e) => e.waterLitres)
+        .reduce((a, b) => a > b ? a : b);
+    final avgWater =
+        weekFull.fold(0.0, (sum, log) => sum + log.waterLitres) /
+        weekFull.length;
+    final chartMaxY = (maxY * 1.3).clamp(1.0, double.infinity);
+
+    return RepaintBoundary(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with average
+            Row(
+              children: [
+                Icon(
+                  Icons.bar_chart_rounded,
+                  color: appColors.infoBlue,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Daily Consumption',
+                    style: TextStyle(
+                      color: colors.onSurface,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: appColors.infoBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Avg ${UnitConverter.formatVolume(avgWater, volUnit)}',
+                    style: TextStyle(
+                      color: appColors.infoBlue,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Poppins',
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Chart
+            SizedBox(
+              height: 200,
+              child: LineChart(
+                LineChartData(
+                  minY: 0,
+                  maxY: chartMaxY,
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (_) => colors.surfaceContainerHighest,
+                      getTooltipItems: (touchedSpots) =>
+                          touchedSpots.map((spot) {
+                            final log = weekFull[spot.x.toInt()];
+                            final water = UnitConverter.formatVolume(
+                              log.waterLitres,
+                              volUnit,
+                            );
+                            final dateStr = '${log.date.month}/${log.date.day}';
+                            return LineTooltipItem(
+                              '$dateStr\n$water',
+                              TextStyle(
+                                color: appColors.infoBlue,
+                                fontSize: 11,
+                                fontFamily: 'Poppins',
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.none,
+                              ),
+                            );
+                          }).toList(),
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (v, _) {
+                          final i = v.toInt();
+                          if (i < 0 || i >= weekFull.length) {
+                            return const SizedBox();
+                          }
+                          const abbr = [
+                            'Mo',
+                            'Tu',
+                            'We',
+                            'Th',
+                            'Fr',
+                            'Sa',
+                            'Su',
+                          ];
+                          return Text(
+                            abbr[weekFull[i].date.weekday - 1],
+                            style: TextStyle(color: muted, fontSize: 11),
+                          );
+                        },
+                      ),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 30,
+                        getTitlesWidget: (v, _) => Text(
+                          v.toInt().toString(),
+                          style: TextStyle(color: muted, fontSize: 10),
+                        ),
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (_) => FlLine(
+                      color: muted.withValues(alpha: 0.15),
+                      strokeWidth: 1,
+                      dashArray: const [4, 4],
+                    ),
+                  ),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: weekFull
+                          .asMap()
+                          .entries
+                          .map(
+                            (e) =>
+                                FlSpot(e.key.toDouble(), e.value.waterLitres),
+                          )
+                          .toList(),
+                      isCurved: true,
+                      curveSmoothness: 0.3,
+                      color: appColors.infoBlue,
+                      barWidth: 3,
+                      isStrokeCapRound: true,
+                      dotData: FlDotData(
+                        show: true,
+                        getDotPainter: (spot, percent, barData, index) =>
+                            FlDotCirclePainter(
+                              radius: 5,
+                              color: weekFull[index].waterLitres > 0
+                                  ? appColors.infoBlue
+                                  : appColors.infoBlue.withValues(alpha: 0.3),
+                              strokeWidth: 2,
+                              strokeColor: colors.surface,
+                            ),
+                      ),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            appColors.infoBlue.withValues(alpha: 0.25),
+                            appColors.infoBlue.withValues(alpha: 0.02),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Daily log table — compact, scrollable
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DailyLogTable extends StatelessWidget {
+  final List<_DailyLog> allLogs;
+  final ColorScheme colors;
+  final Color muted;
+  final String volUnit;
+
+  const _DailyLogTable({
+    required this.allLogs,
+    required this.colors,
+    required this.muted,
+    required this.volUnit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = allLogs.reversed.toList();
 
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: muted.withValues(alpha: 0.2)),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               children: [
+                Icon(Icons.history_rounded, color: muted, size: 16),
+                const SizedBox(width: 6),
                 Text(
                   'Daily Log',
                   style: TextStyle(
                     color: colors.onSurface,
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
+                    fontFamily: 'Poppins',
+                    decoration: TextDecoration.none,
                   ),
                 ),
                 const Spacer(),
                 Text(
                   'Last 14 days',
-                  style: TextStyle(color: muted, fontSize: 11),
+                  style: TextStyle(
+                    color: muted,
+                    fontSize: 11,
+                    decoration: TextDecoration.none,
+                  ),
                 ),
               ],
             ),
           ),
 
+          // Table header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _LogRowLayout(
-              date: Text(
-                'DATE',
-                style: TextStyle(
-                  color: muted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Text('DATE', style: _headerStyle(muted)),
                 ),
-              ),
-              water: Text(
-                'WATER USED',
-                style: TextStyle(
-                  color: muted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+                Expanded(
+                  flex: 2,
+                  child: Text('WATER', style: _headerStyle(muted)),
                 ),
-              ),
-              runtime: Text(
-                'RUNTIME',
-                style: TextStyle(
-                  color: muted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+                Expanded(
+                  flex: 2,
+                  child: Text('TIME', style: _headerStyle(muted)),
                 ),
-              ),
-              efficiency: Text(
-                'EFFICIENCY',
-                style: TextStyle(
-                  color: muted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+                Expanded(
+                  flex: 3,
+                  child: Text('EFFICIENCY', style: _headerStyle(muted)),
                 ),
-              ),
+              ],
             ),
           ),
           const SizedBox(height: 4),
 
+          // Rows
           if (rows.isEmpty)
             Padding(
               padding: const EdgeInsets.all(24),
@@ -652,14 +792,7 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
               ),
             )
           else
-            ...rows.map(
-              (log) => _buildLogRow(
-                log: log,
-                colors: colors,
-                muted: muted,
-                volUnit: volUnit,
-              ),
-            ),
+            ...rows.map((log) => _logRow(log, colors, muted)),
 
           const SizedBox(height: 8),
         ],
@@ -667,234 +800,111 @@ class _WaterUsageScreenState extends State<WaterUsageScreen> {
     );
   }
 
-  // ── One row in the Daily Log table ────────────────────────────────────────
-  Widget _buildLogRow({
-    required _DailyLog log,
-    required ColorScheme colors,
-    required Color muted,
-    required String volUnit,
-  }) {
+  TextStyle _headerStyle(Color muted) => TextStyle(
+    color: muted,
+    fontSize: 10,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.5,
+  );
+
+  Widget _logRow(_DailyLog log, ColorScheme colors, Color muted) {
     final dateStr =
-        '${log.date.year}-'
-        '${log.date.month.toString().padLeft(2, '0')}-'
-        '${log.date.day.toString().padLeft(2, '0')}';
-
+        '${log.date.month.toString().padLeft(2, '0')}-${log.date.day.toString().padLeft(2, '0')}';
     final waterStr = UnitConverter.formatVolume(log.waterLitres, volUnit);
-
     final runtimeStr = log.runtimeMinutes >= 60
-        ? '${(log.runtimeMinutes / 60.0).toStringAsFixed(1)} hrs'
-        : '${log.runtimeMinutes} min';
-
+        ? '${(log.runtimeMinutes / 60.0).toStringAsFixed(1)}h'
+        : '${log.runtimeMinutes}m';
     final effPct = log.efficiency.round();
 
-    final Color barColor;
+    Color effColor;
     if (effPct >= 75) {
-      barColor = AppTheme.teal;
+      effColor = AppTheme.teal;
     } else if (effPct >= 50) {
-      barColor = const Color(0xFFF97316);
+      effColor = const Color(0xFFF97316);
     } else {
-      barColor = colors.error;
+      effColor = colors.error;
     }
 
     return Column(
       children: [
-        Divider(height: 1, color: muted.withValues(alpha: 0.2)),
+        Divider(height: 1, color: muted.withValues(alpha: 0.15)),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-          child: _LogRowLayout(
-            date: Text(
-              dateStr,
-              style: TextStyle(color: colors.onSurface, fontSize: 13),
-            ),
-            water: Text(
-              waterStr,
-              style: TextStyle(
-                color: colors.onSurface,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              // Date
+              Expanded(
+                flex: 3,
+                child: Text(
+                  dateStr,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 13,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
               ),
-            ),
-            runtime: Text(
-              runtimeStr,
-              style: TextStyle(color: muted, fontSize: 13),
-            ),
-            efficiency: Row(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: log.efficiency / 100.0,
-                      backgroundColor: muted.withValues(alpha: 0.2),
-                      color: barColor,
-                      minHeight: 8,
+              // Water
+              Expanded(
+                flex: 2,
+                child: Text(
+                  waterStr,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+              ),
+              // Runtime
+              Expanded(
+                flex: 2,
+                child: Text(
+                  runtimeStr,
+                  style: TextStyle(
+                    color: muted,
+                    fontSize: 13,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+              ),
+              // Efficiency
+              Expanded(
+                flex: 3,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: log.efficiency / 100.0,
+                          backgroundColor: muted.withValues(alpha: 0.15),
+                          color: effColor,
+                          minHeight: 6,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    SizedBox(
+                      width: 30,
+                      child: Text(
+                        '$effPct%',
+                        style: TextStyle(
+                          color: effColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 34,
-                  child: Text(
-                    '$effPct%',
-                    style: TextStyle(color: muted, fontSize: 12),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper: enforces the 4-column proportions used by both header and data rows.
-// flex: 3 | 2 | 2 | 3
-// ─────────────────────────────────────────────────────────────────────────────
-class _LogRowLayout extends StatelessWidget {
-  final Widget date, water, runtime, efficiency;
-  const _LogRowLayout({
-    required this.date,
-    required this.water,
-    required this.runtime,
-    required this.efficiency,
-  });
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(flex: 3, child: date),
-      Expanded(flex: 2, child: water),
-      Expanded(flex: 2, child: runtime),
-      Expanded(flex: 3, child: efficiency),
-    ],
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Reusable card wrapper for charts
-// ─────────────────────────────────────────────────────────────────────────────
-class _ChartCard extends StatelessWidget {
-  final Widget child;
-  final ColorScheme colors;
-  const _ChartCard({required this.child, required this.colors});
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: colors.surface,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: colors.onSurface.withValues(alpha: 0.1)),
-    ),
-    child: child,
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Reusable header row used inside chart cards
-// ─────────────────────────────────────────────────────────────────────────────
-class _ChartHeader extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title, subtitle;
-  final ColorScheme colors;
-  final Color muted;
-
-  const _ChartHeader({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.colors,
-    required this.muted,
-  });
-
-  @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Icon(icon, color: iconColor, size: 20),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: colors.onSurface,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: muted, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    ],
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Stat block card widget (icon + large value + label)
-// ─────────────────────────────────────────────────────────────────────────────
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String value, label;
-  final ColorScheme colors;
-
-  const _StatCard({
-    required this.icon,
-    required this.iconColor,
-    required this.value,
-    required this.label,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: colors.surface,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: colors.onSurface.withValues(alpha: 0.1)),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: iconColor, size: 20),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: TextStyle(
-            color: colors.onSurface,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            color: colors.onSurface.withValues(alpha: 0.5),
-            fontSize: 10,
-          ),
-        ),
-      ],
-    ),
-  );
 }

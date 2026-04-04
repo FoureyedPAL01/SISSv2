@@ -1,4 +1,4 @@
-# ProGuard rules for SISS v2
+# ProGuard rules for RootSync
 # Keep MQTT and Supabase classes from being stripped
 
 # HiveMQ MQTT client

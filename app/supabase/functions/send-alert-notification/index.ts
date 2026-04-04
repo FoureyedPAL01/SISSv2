@@ -92,7 +92,7 @@ function buildNotification(record: AlertRecord): {
   const body = record.message?.trim() || "A new device alert was generated.";
 
   return {
-    title: `SISS Alert: ${type}`,
+    title: `RootSync Alert: ${type}`,
     body,
   };
 }
@@ -191,7 +191,7 @@ serve(async (req: Request) => {
           android: {
             priority: "high",
             notification: {
-              channel_id: "sissv2_alerts",
+              channel_id: "rootsync_alerts",
               sound: "default",
               click_action: "FLUTTER_NOTIFICATION_CLICK",
               color: "#2E7D32",

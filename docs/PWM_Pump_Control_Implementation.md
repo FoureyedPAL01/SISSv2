@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the implementation of PWM (Pulse Width Modulation) pump control for SISSv2, replacing the previous relay-based ON/OFF control with variable speed control using a D4184 MOSFET module.
+This document describes the implementation of PWM (Pulse Width Modulation) pump control for RootSync, replacing the previous relay-based ON/OFF control with variable speed control using a D4184 MOSFET module.
 
 ## Changes Summary
 

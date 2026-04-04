@@ -25,7 +25,8 @@ class MqttService {
     final user = dotenv.env['HIVEMQ_USER']!;
     final password = dotenv.env['HIVEMQ_PASSWORD']!;
 
-    final clientId = 'siss-flutter-${DateTime.now().millisecondsSinceEpoch}';
+    final clientId =
+        'rootsync-flutter-${DateTime.now().millisecondsSinceEpoch}';
 
     _client = MqttServerClient(host, clientId)
       ..port = port
@@ -52,8 +53,9 @@ class MqttService {
   }
 
   void sendPumpCommand(String deviceId, String command, {int? pwmValue}) {
-    if (!isConnected || _client == null)
+    if (!isConnected || _client == null) {
       return; // silently skip; caller uses Supabase fallback
+    }
 
     final topic = 'devices/$deviceId/control';
     final String payload;

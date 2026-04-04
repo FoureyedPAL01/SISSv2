@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide documents the sensor calibration process for SISSv2 ESP32 firmware. Proper calibration ensures accurate readings for soil moisture and rain detection.
+This guide documents the sensor calibration process for RootSync ESP32 firmware. Proper calibration ensures accurate readings for soil moisture and rain detection.
 
 ---
 

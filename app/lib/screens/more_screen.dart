@@ -50,7 +50,7 @@ class MoreScreen extends StatelessWidget {
                     children: [
                       ClipOval(
                         child: Image.asset(
-                          'assets/icon/master.png',
+                          'assets/icon/RootSync.png',
                           width: 88,
                           height: 88,
                           fit: BoxFit.cover,
@@ -58,7 +58,7 @@ class MoreScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 14),
                       Text(
-                        'SISS',
+                        'RootSync',
                         style: TextStyle(
                           fontFamily: 'Poppins',
                           fontSize: 22,

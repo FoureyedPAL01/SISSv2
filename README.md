@@ -1,11 +1,11 @@
-# SISS v2 - Smart Irrigation & Sensor System
+# RootSync - Smart Irrigation System
 
 A serverless IoT irrigation system using Flutter (mobile app), ESP32 (firmware), and Supabase (backend).
 
 ## Project Structure
 
 ```
-SISSv2/
+RootSync/
 ├── app/                    # Flutter mobile application
 │   ├── lib/                # Dart source code
 │   │   ├── main.dart       # App entry point

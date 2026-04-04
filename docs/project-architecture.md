@@ -1,8 +1,8 @@
-# SISSv2 - Smart Irrigation System Architecture
+# RootSync - Smart Irrigation System Architecture
 
 ## Project Overview
 
-SISSv2 is a complete IoT-based smart irrigation system consisting of:
+RootSync is a complete IoT-based smart irrigation system consisting of:
 - **ESP32 Firmware** - Embedded C++ code for sensor data collection and pump control
 - **Flutter Mobile App** - Cross-platform mobile application for monitoring and control
 - **Supabase Backend** - Database, authentication, and edge functions
@@ -13,7 +13,7 @@ SISSv2 is a complete IoT-based smart irrigation system consisting of:
 ## Directory Structure
 
 ```
-SISSv2/
+RootSync/
 ├── app/                         # Flutter mobile application
 │   ├── lib/                     # Dart source code
 │   │   ├── main.dart            # App entry point
@@ -296,7 +296,7 @@ app/assets/
 │   ├── Material_Icons_Outlined/
 │   ├── Material_Icons_Round/
 │   └── Material_Icons_Two_Tone/
-├── icon/                     # App icons (master.png, compass2.jpg, UV.jpg)
+├── icon/                     # App icons (RootSync.png, compass2.jpg, UV.jpg)
 ├── lottie/                   # Lottie animations
 │   ├── phone_portrait/       # Phone portrait animations
 │   ├── phone_portrait_night/ # Night variants

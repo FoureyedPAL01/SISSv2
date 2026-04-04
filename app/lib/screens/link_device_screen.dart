@@ -1,5 +1,5 @@
 // lib/screens/link_device_screen.dart
-// SISS v2 -- Shown automatically when the logged-in user has no device linked.
+// RootSync -- Shown automatically when the logged-in user has no device linked.
 // User enters the device UUID from the sticker on the ESP32 box.
 // On submit, updates devices.user_id to the current user (claiming).
 // Previous owner loses access. All historical data becomes visible to new owner.
@@ -124,7 +124,7 @@ class _LinkDeviceScreenState extends State<LinkDeviceScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Enter the Device UUID printed on the sticker\n'
-                  'on your SISS hardware unit.',
+                  'on your RootSync hardware unit.',
                   style: Theme.of(context).textTheme.bodyMedium,
                   textAlign: TextAlign.center,
                 ),

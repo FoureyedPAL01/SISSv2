@@ -1,5 +1,5 @@
-# SISS v2 — Architecture, Working & Creation Guide
-### Smart Irrigation & Sensor System — Serverless Edition
+# RootSync — Architecture, Working & Creation Guide
+### Smart Irrigation System — Serverless Edition
 
 > **What changed from v1:** The Python backend and local Mosquitto broker are completely removed.
 > The ESP32 talks directly to Supabase and HiveMQ Cloud. Any account can claim and control
@@ -285,7 +285,7 @@ App startup after login:
                 |  Link Your Device                             |
                 |                                               |
                 |  Enter the Device UUID from the sticker       |
-                |  on your SISS hardware unit.                  |
+                |  on your RootSync hardware unit.                  |
                 |                                               |
                 |  [ xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx ]     |
                 |                                               |

@@ -24,7 +24,7 @@ class NotificationService {
 
   static const AndroidNotificationChannel _alertChannel =
       AndroidNotificationChannel(
-        'sissv2_alerts',
+        'rootsync_alerts',
         'Plant Alerts',
         description: 'Real-time alerts from your ESP32 plant monitoring system',
         importance: Importance.high,
@@ -231,7 +231,7 @@ class NotificationService {
 
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-          'sissv2_alerts',
+          'rootsync_alerts',
           'Plant Alerts',
           channelDescription:
               'Real-time alerts from your ESP32 plant monitoring system',
@@ -248,7 +248,7 @@ class NotificationService {
     await _localNotifications.show(
       0,
       'Test Notification',
-      'This is a test notification from SISSv2!',
+      'This is a test notification from RootSync!',
       details,
     );
 
