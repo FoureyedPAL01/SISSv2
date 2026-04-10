@@ -52,22 +52,23 @@ class MqttService {
     }
   }
 
-  void sendPumpCommand(String deviceId, String command, {int? pwmValue}) {
+  bool sendPumpCommand(String deviceId, String command) {
     if (!isConnected || _client == null) {
-      return; // silently skip; caller uses Supabase fallback
+      return false; // MQTT not connected, fallback will be used
     }
 
     final topic = 'devices/$deviceId/control';
     final String payload;
-    final pwm = pwmValue ?? 200; // Default to 200 (~78%) if not specified
 
-    payload = '{"command":"$command","pwm":$pwm}';
+    // command: "on" or "off"
+    payload = '{"command":"$command"}';
 
     final builder = MqttClientPayloadBuilder()..addString(payload);
     final payloadBytes = builder.payload;
-    if (payloadBytes == null) return;
+    if (payloadBytes == null) return false;
 
     _client!.publishMessage(topic, MqttQos.atLeastOnce, payloadBytes);
+    return true;
   }
 
   void _onDisconnected() {

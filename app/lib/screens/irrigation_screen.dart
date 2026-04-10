@@ -649,7 +649,7 @@ class _DailyTrendSection extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: entries.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder: (context, i) {
           final avg = entries[i].value;
           final label = _shortDayLabel(entries[i].key);

@@ -36,7 +36,10 @@ class _DeleteAccountButtonState extends State<DeleteAccountButton> {
                   ),
                 )
               : const Icon(Icons.delete_forever, color: Colors.white),
-          label: const Text('Delete Account', style: TextStyle(color: Colors.white)),
+          label: const Text(
+            'Delete Account',
+            style: TextStyle(color: Colors.white),
+          ),
           style: FilledButton.styleFrom(
             backgroundColor: colors.error,
             disabledBackgroundColor: colors.error.withValues(alpha: 0.6),

@@ -398,7 +398,7 @@ class _LoginScreenState extends State<LoginScreen>
                       // App icon
                       ClipOval(
                         child: Image.asset(
-                          'assets/icon/master.png',
+                          'assets/icon/RootSync.png',
                           width: 58,
                           height: 58,
                           fit: BoxFit.cover,

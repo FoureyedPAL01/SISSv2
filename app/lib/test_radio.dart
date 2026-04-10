@@ -8,9 +8,7 @@ void main() {
           groupValue: 'a',
           onChanged: (String? value) {},
           child: Column(
-            children: [
-              RadioListTile<String>(title: Text('A'), value: 'a'),
-            ],
+            children: [RadioListTile<String>(title: Text('A'), value: 'a')],
           ),
         ),
       ),

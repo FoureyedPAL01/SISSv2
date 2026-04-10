@@ -16,7 +16,7 @@ class SettingsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final sectionColor =
         Theme.of(context).textTheme.headlineMedium?.color ??
-            Theme.of(context).colorScheme.onSurface;
+        Theme.of(context).colorScheme.onSurface;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -31,9 +31,9 @@ class SettingsSection extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: sectionColor,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  color: sectionColor,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),

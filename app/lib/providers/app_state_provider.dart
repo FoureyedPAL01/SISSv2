@@ -6,7 +6,7 @@ import 'dart:async';
 
 class AppStateProvider extends ChangeNotifier {
   // State variables
-  bool      _isLoading = true;
+  bool _isLoading = true;
   ThemeMode _themeMode = ThemeMode.system;
   String? _deviceId;
   Map<String, dynamic> _latestSensorData = {};
@@ -56,51 +56,53 @@ class AppStateProvider extends ChangeNotifier {
   bool _isPumpRunning = false;
   DateTime? _lastStatusCheck;
 
-  bool      get isLoading        => _isLoading;
-  ThemeMode get themeMode        => _themeMode;
-  String?   get deviceId         => _deviceId;
-  double?   get deviceLatitude   => _deviceLatitude;
-  double?   get deviceLongitude  => _deviceLongitude;
-  bool      get isPumpRunning    => _isPumpRunning;
+  bool get isLoading => _isLoading;
+  ThemeMode get themeMode => _themeMode;
+  String? get deviceId => _deviceId;
+  double? get deviceLatitude => _deviceLatitude;
+  double? get deviceLongitude => _deviceLongitude;
+  bool get isPumpRunning => _isPumpRunning;
 
   void setPumpRunning(bool value) {
     _isPumpRunning = value;
     notifyListeners();
   }
 
-  Map<String, dynamic>  get latestSensorData => _latestSensorData;
+  Map<String, dynamic> get latestSensorData => _latestSensorData;
   List<Map<String, dynamic>> get sensorHistory => _sensorHistory;
 
-  Map<String, dynamic>? get userProfile     => _userProfile;
-  bool                  get isSaving        => _isSaving;
-  String?               get saveError       => _saveError;
+  Map<String, dynamic>? get userProfile => _userProfile;
+  bool get isSaving => _isSaving;
+  String? get saveError => _saveError;
 
-  Map<String, dynamic>?       get activeCropProfile  => _activeCropProfile;
-  List<Map<String, dynamic>>  get weeklyWaterUsage   => _weeklyWaterUsage;
+  Map<String, dynamic>? get activeCropProfile => _activeCropProfile;
+  List<Map<String, dynamic>> get weeklyWaterUsage => _weeklyWaterUsage;
 
-  bool      get isDeviceOnline => _isDeviceOnline;
-  bool      get isApiConnected => _isApiConnected;
+  bool get isDeviceOnline => _isDeviceOnline;
+  bool get isApiConnected => _isApiConnected;
   DateTime? get deviceLastSeen => _deviceLastSeen;
-  String?   get deviceName     => _deviceName;
+  String? get deviceName => _deviceName;
 
   bool get hasDevice => _deviceId != null;
 
   // Convenience getters for profile fields
-  String get username            => _userProfile?['username']             ?? '';
-  String get tempUnit            => _userProfile?['temp_unit']            ?? 'celsius';
-  String get volumeUnit          => _userProfile?['volume_unit']          ?? 'litres';
-  String get timezone            => _userProfile?['timezone']             ?? 'UTC';
-  bool   get pumpAlerts          => _userProfile?['pump_alerts']          ?? true;
-  bool   get soilMoistureAlerts  => _userProfile?['soil_moisture_alerts'] ?? true;
-  bool   get weatherAlerts       => _userProfile?['weather_alerts']       ?? true;
-  bool   get fertigationReminders => _userProfile?['fertigation_reminders'] ?? true;
-  bool   get deviceOfflineAlerts => _userProfile?['device_offline_alerts'] ?? true;
-  bool   get weeklySummary       => _userProfile?['weekly_summary']       ?? false;
-  String get locationLat         => _userProfile?['location_lat']         ?? '19.0760';
-  String get locationLon         => _userProfile?['location_lon']         ?? '72.8777';
-  String get windUnit            => _userProfile?['wind_unit']            ?? 'km/h';
-  String get precipitationUnit   => _userProfile?['precipitation_unit']   ?? 'mm';
-  String get aqiType             => _userProfile?['aqi_type']             ?? 'us';
+  String get username => _userProfile?['username'] ?? '';
+  String get tempUnit => _userProfile?['temp_unit'] ?? 'celsius';
+  String get volumeUnit => _userProfile?['volume_unit'] ?? 'litres';
+  String get timezone => _userProfile?['timezone'] ?? 'UTC';
+  bool get pumpAlerts => _userProfile?['pump_alerts'] ?? true;
+  bool get soilMoistureAlerts => _userProfile?['soil_moisture_alerts'] ?? true;
+  bool get weatherAlerts => _userProfile?['weather_alerts'] ?? true;
+  bool get fertigationReminders =>
+      _userProfile?['fertigation_reminders'] ?? true;
+  bool get deviceOfflineAlerts =>
+      _userProfile?['device_offline_alerts'] ?? true;
+  bool get weeklySummary => _userProfile?['weekly_summary'] ?? false;
+  String get locationLat => _userProfile?['location_lat'] ?? '19.0760';
+  String get locationLon => _userProfile?['location_lon'] ?? '72.8777';
+  String get windUnit => _userProfile?['wind_unit'] ?? 'km/h';
+  String get precipitationUnit => _userProfile?['precipitation_unit'] ?? 'mm';
+  String get aqiType => _userProfile?['aqi_type'] ?? 'us';
 
   // ── Subscriptions ─────────────────────────────────────────────────────────
   late final StreamSubscription<AuthState> _authSub;
@@ -110,9 +112,9 @@ class AppStateProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('theme_mode') ?? 'system';
     _themeMode = switch (saved) {
-      'light'  => ThemeMode.light,
-      'dark'   => ThemeMode.dark,
-      _        => ThemeMode.system,
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
     };
     notifyListeners();
   }
@@ -122,8 +124,8 @@ class AppStateProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('theme_mode', switch (mode) {
-      ThemeMode.light  => 'light',
-      ThemeMode.dark   => 'dark',
+      ThemeMode.light => 'light',
+      ThemeMode.dark => 'dark',
       ThemeMode.system => 'system',
     });
   }
@@ -138,20 +140,20 @@ class AppStateProvider extends ChangeNotifier {
         Future.microtask(_init);
       } else if (event == AuthChangeEvent.signedOut) {
         _clearRealtimeChannel();
-        _deviceId          = null;
-        _latestSensorData  = {};
-        _sensorHistory     = [];
-        _userProfile       = null;
+        _deviceId = null;
+        _latestSensorData = {};
+        _sensorHistory = [];
+        _userProfile = null;
         _activeCropProfile = null;
-        _weeklyWaterUsage  = [];
-        _isPumpRunning     = false;
-        _isDeviceOnline    = false;
-        _isApiConnected    = false;
-        _deviceLastSeen    = null;
-        _deviceName        = null;
-        _deviceLatitude    = null;
-        _deviceLongitude   = null;
-        _isLoading         = false;
+        _weeklyWaterUsage = [];
+        _isPumpRunning = false;
+        _isDeviceOnline = false;
+        _isApiConnected = false;
+        _deviceLastSeen = null;
+        _deviceName = null;
+        _deviceLatitude = null;
+        _deviceLongitude = null;
+        _isLoading = false;
         notifyListeners();
       }
     });
@@ -207,10 +209,12 @@ class AppStateProvider extends ChangeNotifier {
       debugPrint('[DEBUG] Devices response: $response');
 
       if (response.isNotEmpty) {
-        _deviceId        = response[0]['id'];
-        _deviceLatitude  = (response[0]['latitude']  as num?)?.toDouble();
+        _deviceId = response[0]['id'];
+        _deviceLatitude = (response[0]['latitude'] as num?)?.toDouble();
         _deviceLongitude = (response[0]['longitude'] as num?)?.toDouble();
-        debugPrint('[DEBUG] Device found: $_deviceId, lat: $_deviceLatitude, lon: $_deviceLongitude');
+        debugPrint(
+          '[DEBUG] Device found: $_deviceId, lat: $_deviceLatitude, lon: $_deviceLongitude',
+        );
         await _subscribeToSensorData();
       } else {
         debugPrint('[DEBUG] No device linked to this user');
@@ -241,7 +245,9 @@ class AppStateProvider extends ChangeNotifier {
 
     final historyResponse = await Supabase.instance.client
         .from('sensor_readings')
-        .select('soil_moisture, temperature_c, humidity, flow_litres, recorded_at')
+        .select(
+          'soil_moisture, temperature_c, humidity, flow_litres, recorded_at',
+        )
         .eq('device_id', _deviceId!)
         .order('recorded_at', ascending: false)
         .limit(60);
@@ -316,7 +322,7 @@ class AppStateProvider extends ChangeNotifier {
     if (_deviceId == null) return;
 
     try {
-      final weekAgo  = DateTime.now().subtract(const Duration(days: 7));
+      final weekAgo = DateTime.now().subtract(const Duration(days: 7));
       final response = await Supabase.instance.client
           .from('pump_logs')
           .select('pump_on_at, water_used_litres')
@@ -326,13 +332,13 @@ class AppStateProvider extends ChangeNotifier {
 
       final Map<String, double> dailyTotals = {};
       for (final row in response) {
-        final date   = (row['pump_on_at'] as String).split('T')[0];
+        final date = (row['pump_on_at'] as String).split('T')[0];
         final litres = (row['water_used_litres'] as num?)?.toDouble() ?? 0.0;
         dailyTotals[date] = (dailyTotals[date] ?? 0.0) + litres;
       }
 
       _weeklyWaterUsage = List.generate(7, (i) {
-        final day  = weekAgo.add(Duration(days: i));
+        final day = weekAgo.add(Duration(days: i));
         final date = day.toIso8601String().split('T')[0];
         return {'date': date, 'total_liters': dailyTotals[date] ?? 0.0};
       });
@@ -358,7 +364,8 @@ class AppStateProvider extends ChangeNotifier {
           .maybeSingle();
 
       if (response != null) {
-        final isRunning = response['pump_on_at'] != null &&
+        final isRunning =
+            response['pump_on_at'] != null &&
             response['duration_seconds'] == null;
         if (_isPumpRunning != isRunning) {
           _isPumpRunning = isRunning;
@@ -432,7 +439,7 @@ class AppStateProvider extends ChangeNotifier {
   Future<void> _updateProfileField(String field, dynamic value) async {
     if (_userProfile == null) return;
 
-    _isSaving  = true;
+    _isSaving = true;
     _saveError = null;
     notifyListeners();
 
@@ -446,15 +453,18 @@ class AppStateProvider extends ChangeNotifier {
       _isSaving = false;
       notifyListeners();
     } catch (e) {
-      _isSaving  = false;
+      _isSaving = false;
       _saveError = e.toString();
       notifyListeners();
       debugPrint('[DEBUG] Error updating profile field $field: $e');
     }
   }
 
-  Future<void> updatePassword(String currentPassword, String newPassword) async {
-    _isSaving  = true;
+  Future<void> updatePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    _isSaving = true;
     _saveError = null;
     notifyListeners();
 
@@ -465,7 +475,7 @@ class AppStateProvider extends ChangeNotifier {
       }
 
       await Supabase.instance.client.auth.signInWithPassword(
-        email:    currentUser.email!,
+        email: currentUser.email!,
         password: currentPassword,
       );
       await Supabase.instance.client.auth.updateUser(
@@ -475,12 +485,12 @@ class AppStateProvider extends ChangeNotifier {
       _isSaving = false;
       notifyListeners();
     } on AuthException catch (e) {
-      _isSaving  = false;
+      _isSaving = false;
       _saveError = e.message;
       notifyListeners();
       rethrow;
     } catch (e) {
-      _isSaving  = false;
+      _isSaving = false;
       _saveError = e.toString();
       notifyListeners();
       rethrow;
@@ -501,7 +511,7 @@ class AppStateProvider extends ChangeNotifier {
       );
       await signOut();
     } catch (e) {
-      _isSaving  = false;
+      _isSaving = false;
       _saveError = e.toString();
       notifyListeners();
       rethrow;
@@ -553,7 +563,7 @@ class AppStateProvider extends ChangeNotifier {
         }
       } catch (_) {
         _isDeviceOnline = false;
-        _deviceName     = null;
+        _deviceName = null;
       }
     }
 

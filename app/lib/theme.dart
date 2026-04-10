@@ -8,13 +8,13 @@ class AppTheme {
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Primary: Deep chlorophyll greens
-  static const Color primary = Color(0xFF16351C);       // Deep forest green
+  static const Color primary = Color(0xFF16351C); // Deep forest green
   static const Color primaryContainer = Color(0xFF2D4C31); // Lighter green
   static const Color onPrimary = Color(0xFFFFFFFF);
   static const Color onPrimaryContainer = Color(0xFFD4E8D0);
 
   // Secondary: Earthy accents
-  static const Color secondary = Color(0xFF4A5D23);    // Olive
+  static const Color secondary = Color(0xFF4A5D23); // Olive
   static const Color secondaryContainer = Color(0xFF6B8240);
   static const Color onSecondary = Color(0xFFFFFFFF);
   static const Color onSecondaryContainer = Color(0xFFE8F0D8);
@@ -23,11 +23,11 @@ class AppTheme {
   // BACKWARDS COMPATIBILITY (legacy names for existing screens)
   // ─────────────────────────────────────────────────────────────────────────────
   // These map old names to new botanical palette
-  static const Color teal = primary;         // Was #40916C → now #16351C
+  static const Color teal = primary; // Was #40916C → now #16351C
   static const Color deepLeaf = primaryContainer; // Was #2D6A4F → now #2D4C31
   static const Color pine = primaryContainer;
-  static const Color night = onSurface;    // Was #081C15 → now #1B1C1A
-  static const Color freshLeaf = secondary;      // Was #52B788 → now #4A5D23
+  static const Color night = onSurface; // Was #081C15 → now #1B1C1A
+  static const Color freshLeaf = secondary; // Was #52B788 → now #4A5D23
   static const Color softMint = Color(0xFF95D5B2);
   static const Color paleMint = surfaceContainerLow;
   static const Color mist = surfaceContainerLow;
@@ -35,7 +35,7 @@ class AppTheme {
   static const Color accentRed = error;
 
   // Tertiary: Warm botanical
-  static const Color tertiary = Color(0xFF3D6B54);      // Sage
+  static const Color tertiary = Color(0xFF3D6B54); // Sage
   static const Color tertiaryContainer = Color(0xFF5A9178);
   static const Color onTertiary = Color(0xFFFFFFFF);
   static const Color onTertiaryContainer = Color(0xFFD0E8DC);
@@ -47,12 +47,14 @@ class AppTheme {
   static const Color onErrorContainer = Color(0xFF410002);
 
   // Surface hierarchy (The "No-Line" Rule - no borders, only color shifts)
-  static const Color surface = Color(0xFFFBF9F5);         // Base - warm paper white
-  static const Color surfaceBright = Color(0xFFF8F5F0);    // Slightly brighter
-  static const Color surfaceContainerLowest = Color(0xFFFFFFFF); // Cards - max pop
-  static const Color surfaceContainerLow = Color(0xFFF5F3F0);     // Sections
-  static const Color surfaceContainer = Color(0xFFEFEEEA);         // Elevated
-  static const Color surfaceContainerHigh = Color(0xFFE9E8E3);      // High elevation
+  static const Color surface = Color(0xFFFBF9F5); // Base - warm paper white
+  static const Color surfaceBright = Color(0xFFF8F5F0); // Slightly brighter
+  static const Color surfaceContainerLowest = Color(
+    0xFFFFFFFF,
+  ); // Cards - max pop
+  static const Color surfaceContainerLow = Color(0xFFF5F3F0); // Sections
+  static const Color surfaceContainer = Color(0xFFEFEEEA); // Elevated
+  static const Color surfaceContainerHigh = Color(0xFFE9E8E3); // High elevation
   static const Color surfaceContainerHighest = Color(0xFFE3E2DD);
 
   // On-surface (warm charcoal instead of pure black)
@@ -183,9 +185,7 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: surfaceContainerLowest,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.only(bottom: 12),
       ),
 
@@ -249,16 +249,17 @@ class AppTheme {
         backgroundColor: primaryContainer,
         foregroundColor: onPrimaryContainer,
         elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
 
       // Input Fields - Surface container high, no border, ghost border on focus
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surfaceContainerHigh,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16), // DEFAULT (1rem)
           borderSide: BorderSide.none,
@@ -288,9 +289,7 @@ class AppTheme {
           fontSize: 13,
           fontWeight: FontWeight.w500,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         side: BorderSide.none,
       ),
 
@@ -305,9 +304,7 @@ class AppTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: surfaceContainerLow,
         elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         titleTextStyle: const TextStyle(
           fontFamily: 'Manrope',
           fontSize: 22,
@@ -334,9 +331,7 @@ class AppTheme {
       listTileTheme: ListTileThemeData(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         tileColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
 
       // Switch
@@ -360,9 +355,7 @@ class AppTheme {
           return Colors.transparent;
         }),
         checkColor: WidgetStateProperty.all(onPrimary),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         side: BorderSide(color: outlineVariant, width: 1.5),
       ),
 
@@ -389,17 +382,10 @@ class AppTheme {
       ),
 
       // Icon Theme
-      iconTheme: const IconThemeData(
-        color: onSurfaceVariant,
-        size: 24,
-      ),
+      iconTheme: const IconThemeData(color: onSurfaceVariant, size: 24),
 
       // Extensions
-    ).copyWith(
-      extensions: const <ThemeExtension<dynamic>>[
-        AppColors.light,
-      ],
-    );
+    ).copyWith(extensions: const <ThemeExtension<dynamic>>[AppColors.light]);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -407,32 +393,36 @@ class AppTheme {
   // ─────────────────────────────────────────────────────────────────────────────
   static ThemeData get darkTheme {
     // Midnight Greenhouse palette
-    const darkSurface = Color(0xFF121412);           // Level 0 - Base canvas
+    const darkSurface = Color(0xFF121412); // Level 0 - Base canvas
     const darkSurfaceContainerLow = Color(0xFF1a1c1a); // Level 1 - Sections
-    const darkSurfaceContainer = Color(0xFF1e201e);    // Level 2 - Cards
+    const darkSurfaceContainer = Color(0xFF1e201e); // Level 2 - Cards
     const darkSurfaceContainerHigh = Color(0xFF282a28);
-    const darkSurfaceContainerHighest = Color(0xFF333533); // Level 3 - Pop-overs
-    const darkSurfaceContainerLowest = Color(0xFF0d0f0d);  // Input fields
+    const darkSurfaceContainerHighest = Color(
+      0xFF333533,
+    ); // Level 3 - Pop-overs
+    const darkSurfaceContainerLowest = Color(0xFF0d0f0d); // Input fields
 
-    const darkPrimary = Color(0xFFb5cdb3);           // Leaf in moonlight
+    const darkPrimary = Color(0xFFb5cdb3); // Leaf in moonlight
     const darkOnPrimary = Color(0xFF213522);
     const darkPrimaryContainer = Color(0xFF2d4530);
     const darkOnPrimaryContainer = Color(0xFFd4e8d0);
 
     const darkSecondary = Color(0xFF9fbca3);
     const darkOnSecondary = Color(0xFF1e3522);
-    const darkSecondaryContainer = Color(0xFF334d38);  // Chips
+    const darkSecondaryContainer = Color(0xFF334d38); // Chips
     const darkOnSecondaryContainer = Color(0xFF9fbca3);
 
-    const darkTertiary = Color(0xFFeac34a);           // Gold highlight
+    const darkTertiary = Color(0xFFeac34a); // Gold highlight
     const darkOnTertiary = Color(0xFF3d3000);
     const darkTertiaryContainer = Color(0xFF584500);
     const darkOnTertiaryContainer = Color(0xFFffe08a);
 
-    const darkOnSurface = Color(0xFFe2e3df);         // Body text - WCAG AA
-    const darkOnSurfaceVariant = Color(0xFFc3c8bf);  // Labels
-    const darkOutline = Color(0xFF434842);           // Ghost border
-    const darkOutlineVariant = Color(0xFF434842);    // 15% opacity for ghost borders
+    const darkOnSurface = Color(0xFFe2e3df); // Body text - WCAG AA
+    const darkOnSurfaceVariant = Color(0xFFc3c8bf); // Labels
+    const darkOutline = Color(0xFF434842); // Ghost border
+    const darkOutlineVariant = Color(
+      0xFF434842,
+    ); // 15% opacity for ghost borders
 
     const darkError = Color(0xFFffb4ab);
     const darkOnError = Color(0xFF690005);
@@ -601,16 +591,17 @@ class AppTheme {
         backgroundColor: darkPrimaryContainer,
         foregroundColor: darkOnPrimaryContainer,
         elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
 
       // Input Fields - Surface container lowest, no border
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: darkSurfaceContainerLowest,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -626,7 +617,9 @@ class AppTheme {
             width: 1,
           ),
         ),
-        hintStyle: TextStyle(color: darkOnSurfaceVariant.withValues(alpha: 0.6)),
+        hintStyle: TextStyle(
+          color: darkOnSurfaceVariant.withValues(alpha: 0.6),
+        ),
         labelStyle: const TextStyle(color: darkOnSurfaceVariant),
       ),
 
@@ -657,9 +650,7 @@ class AppTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: darkSurfaceContainerHigh,
         elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         titleTextStyle: const TextStyle(
           fontFamily: 'Manrope',
           fontSize: 22,
@@ -686,9 +677,7 @@ class AppTheme {
       listTileTheme: ListTileThemeData(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         tileColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
 
       // Switch
@@ -712,10 +701,11 @@ class AppTheme {
           return Colors.transparent;
         }),
         checkColor: WidgetStateProperty.all(darkOnPrimary),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        side: BorderSide(
+          color: darkOutlineVariant.withValues(alpha: 0.15),
+          width: 1.5,
         ),
-        side: BorderSide(color: darkOutlineVariant.withValues(alpha: 0.15), width: 1.5),
       ),
 
       // Radio
@@ -741,16 +731,8 @@ class AppTheme {
       ),
 
       // Icon Theme
-      iconTheme: const IconThemeData(
-        color: darkOnSurfaceVariant,
-        size: 24,
-      ),
-
-    ).copyWith(
-      extensions: const <ThemeExtension<dynamic>>[
-        AppColors.dark,
-      ],
-    );
+      iconTheme: const IconThemeData(color: darkOnSurfaceVariant, size: 24),
+    ).copyWith(extensions: const <ThemeExtension<dynamic>>[AppColors.dark]);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -758,8 +740,12 @@ class AppTheme {
   // ─────────────────────────────────────────────────────────────────────────────
   static TextTheme _buildTextTheme(Brightness brightness) {
     final isLight = brightness == Brightness.light;
-    final onSurface = isLight ? const Color(0xFF1B1C1A) : const Color(0xFFE3E2DD);
-    final onSurfaceVariant = isLight ? const Color(0xFF464743) : const Color(0xFFc3c8bf);
+    final onSurface = isLight
+        ? const Color(0xFF1B1C1A)
+        : const Color(0xFFE3E2DD);
+    final onSurfaceVariant = isLight
+        ? const Color(0xFF464743)
+        : const Color(0xFFc3c8bf);
 
     return TextTheme(
       // Display - Manrope (hero moments)
@@ -932,10 +918,14 @@ class AppColors extends ThemeExtension<AppColors> {
   AppColors lerp(ThemeExtension<AppColors>? other, double t) {
     if (other is! AppColors) return this;
     return AppColors(
-      successGreen: Color.lerp(successGreen, other.successGreen, t) ?? successGreen,
+      successGreen:
+          Color.lerp(successGreen, other.successGreen, t) ?? successGreen,
       infoBlue: Color.lerp(infoBlue, other.infoBlue, t) ?? infoBlue,
-      infoBlueDark: Color.lerp(infoBlueDark, other.infoBlueDark, t) ?? infoBlueDark,
-      infoBlueBackground: Color.lerp(infoBlueBackground, other.infoBlueBackground, t) ?? infoBlueBackground,
+      infoBlueDark:
+          Color.lerp(infoBlueDark, other.infoBlueDark, t) ?? infoBlueDark,
+      infoBlueBackground:
+          Color.lerp(infoBlueBackground, other.infoBlueBackground, t) ??
+          infoBlueBackground,
     );
   }
 }

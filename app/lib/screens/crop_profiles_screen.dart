@@ -759,7 +759,6 @@ class _ProfileSheetState extends State<_ProfileSheet> {
   final _plantController = TextEditingController();
 
   double _threshold = 30.0;
-  double _pwmDuty = 200.0;
   bool _saving = false;
 
   // Inline validation state — replaces Form validator.
@@ -774,7 +773,6 @@ class _ProfileSheetState extends State<_ProfileSheet> {
       _nameController.text = widget.existing!.name;
       _plantController.text = widget.existing!.plantName;
       _threshold = widget.existing!.minMoisture;
-      _pwmDuty = widget.existing!.pwmDuty.toDouble();
     }
     // Clear the name error as soon as the user types.
     _nameController.addListener(() {
@@ -819,7 +817,6 @@ class _ProfileSheetState extends State<_ProfileSheet> {
               'name': name,
               'plant_name': plantName.isNotEmpty ? plantName : null,
               'min_moisture': _threshold,
-              'pwm_duty': _pwmDuty.round(),
               if (plantChanged) 'perenual_data': null,
               if (plantChanged) 'perenual_species_id': null,
               if (plantChanged) 'perenual_cached_at': null,
@@ -831,7 +828,6 @@ class _ProfileSheetState extends State<_ProfileSheet> {
           'name': name,
           'plant_name': plantName.isNotEmpty ? plantName : null,
           'min_moisture': _threshold,
-          'pwm_duty': _pwmDuty.round(),
         });
       }
 
@@ -960,44 +956,6 @@ class _ProfileSheetState extends State<_ProfileSheet> {
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-
-            // PWM Duty setting
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Pump Speed (PWM)',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Higher PWM = faster water flow. Set to 0 to disable pump.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-                Slider(
-                  value: _pwmDuty,
-                  min: 0,
-                  max: 255,
-                  divisions: 255,
-                  label: '${(_pwmDuty * 100 / 255).round()}%',
-                  onChanged: (v) => setState(() => _pwmDuty = v),
-                ),
-                Center(
-                  child: Text(
-                    'PWM: ${_pwmDuty.round()} (${(_pwmDuty * 100 / 255).round()}%)',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
             ),
             const SizedBox(height: 24),
 

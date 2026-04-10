@@ -23,7 +23,7 @@ class ToggleSettingTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final sectionColor =
         Theme.of(context).textTheme.headlineMedium?.color ??
-            Theme.of(context).colorScheme.onSurface;
+        Theme.of(context).colorScheme.onSurface;
     return SwitchListTile(
       secondary: _buildLeading(sectionColor),
       title: Text(title, style: TextStyle(color: sectionColor)),

@@ -88,7 +88,8 @@ class _EditableTextTileState extends State<EditableTextTile> {
 
   @override
   Widget build(BuildContext context) {
-    final hasError = _localError != null ||
+    final hasError =
+        _localError != null ||
         widget.errorText != null ||
         widget.saveStatus == SaveStatus.error;
     final displayError = _localError ?? widget.errorText;
@@ -104,8 +105,10 @@ class _EditableTextTileState extends State<EditableTextTile> {
                 labelText: widget.title,
                 hintText: widget.hintText,
                 isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 errorText: displayError,
                 border: const OutlineInputBorder(),
               ),
@@ -149,7 +152,9 @@ class _EditableTextTileState extends State<EditableTextTile> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.check),
-                  onPressed: widget.saveStatus == SaveStatus.saving ? null : _save,
+                  onPressed: widget.saveStatus == SaveStatus.saving
+                      ? null
+                      : _save,
                 ),
               ],
             )

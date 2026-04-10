@@ -25,7 +25,7 @@ class DropdownSettingTile<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final sectionColor =
         Theme.of(context).textTheme.headlineMedium?.color ??
-            Theme.of(context).colorScheme.onSurface;
+        Theme.of(context).colorScheme.onSurface;
     return ListTile(
       leading: _buildLeading(sectionColor),
       title: Text(title, style: TextStyle(color: sectionColor)),
@@ -36,10 +36,7 @@ class DropdownSettingTile<T> extends StatelessWidget {
         width: 140,
         child: SegmentedButton<T>(
           segments: options.entries
-              .map((e) => ButtonSegment<T>(
-                    value: e.key,
-                    label: Text(e.value),
-                  ))
+              .map((e) => ButtonSegment<T>(value: e.key, label: Text(e.value)))
               .toList(),
           selected: {value},
           onSelectionChanged: saveStatus == SaveStatus.saving

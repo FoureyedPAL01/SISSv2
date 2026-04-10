@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 class InlinePasswordTile extends StatefulWidget {
   final String title;
   final IconData icon;
-  final Future<void> Function(String currentPassword, String newPassword) onUpdate;
+  final Future<void> Function(String currentPassword, String newPassword)
+  onUpdate;
   final bool isLoading;
   final String? errorMessage;
 
@@ -112,7 +113,7 @@ class _InlinePasswordTileState extends State<InlinePasswordTile> {
     final displayError = _localError ?? widget.errorMessage;
     final sectionColor =
         Theme.of(context).textTheme.headlineMedium?.color ??
-            Theme.of(context).colorScheme.onSurface;
+        Theme.of(context).colorScheme.onSurface;
 
     return Column(
       children: [
@@ -172,7 +173,8 @@ class _InlinePasswordTileState extends State<InlinePasswordTile> {
                     labelText: 'Confirm New Password',
                     border: const OutlineInputBorder(),
                     isDense: true,
-                    errorText: displayError?.contains('match') == true ||
+                    errorText:
+                        displayError?.contains('match') == true ||
                             displayError?.contains('characters') == true
                         ? displayError
                         : null,

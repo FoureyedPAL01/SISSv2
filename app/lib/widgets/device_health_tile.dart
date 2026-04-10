@@ -71,7 +71,7 @@ class DeviceHealthTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final sectionColor =
         Theme.of(context).textTheme.headlineMedium?.color ??
-            Theme.of(context).colorScheme.onSurface;
+        Theme.of(context).colorScheme.onSurface;
     return ListTile(
       leading: Icon(Icons.memory, color: sectionColor),
       title: Text(deviceName, style: TextStyle(color: sectionColor)),
@@ -112,7 +112,7 @@ class ApiConnectivityTile extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final sectionColor =
         Theme.of(context).textTheme.headlineMedium?.color ??
-            Theme.of(context).colorScheme.onSurface;
+        Theme.of(context).colorScheme.onSurface;
     return ListTile(
       leading: Icon(
         isConnected ? Icons.cloud_done : Icons.cloud_off,

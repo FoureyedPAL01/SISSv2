@@ -9,7 +9,6 @@ struct CropProfile {
   int moistureLow;
   int irrigateSecs;
   int rainSkipPct;
-  int pwmDuty;  // PWM duty cycle (0-255), defaults to 200 (~78%)
 };
 
 void _addSupabaseHeaders(HTTPClient& http) {
@@ -87,14 +86,49 @@ void patchPumpLogEnd(long logId, int moistureAfter, int durationSecs, float wate
   http.end();
 }
 
-// Relational Fetch: Gets crop_profiles data directly through the device relation!
-CropProfile fetchCropProfile() {
-  CropProfile profile = {DEFAULT_MOISTURE_LOW, DEFAULT_IRRIGATE_SEC, DEFAULT_RAIN_SKIP, DEFAULT_PWM_DUTY};
+// Fetch pending device commands from Supabase
+// Returns: "on", "off", or "" (empty string if no command)
+String fetchDeviceCommand() {
   WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
   
-  String url = String(SUPABASE_URL) + "/rest/v1/devices?id=eq." + String(DEVICE_ID) + "&select=crop_profiles(moisture_threshold_low,irrigation_duration_s,weather_sensitivity,pwm_duty)";
+  // order=created_at.asc ensures we process older commands first (FIFO context)
+  String url = String(SUPABASE_URL) + "/rest/v1/device_commands?device_id=eq." + String(DEVICE_ID) + "&consumed=eq.false&order=created_at.asc&limit=1";
+  http.begin(client, url);
+  _addSupabaseHeaders(http);
+
+  if (http.GET() == 200) {
+    JsonDocument doc;
+    deserializeJson(doc, http.getString());
+    http.end(); // close connection before next request
+
+    if (doc.size() > 0) {
+      String cmd = doc[0]["command"].as<String>();
+      String cmdId = doc[0]["id"].as<String>();
+      
+      // Mark command as consumed
+      http.begin(client, String(SUPABASE_URL) + "/rest/v1/device_commands?id=eq." + cmdId);
+      _addSupabaseHeaders(http);
+      http.PATCH("{\"consumed\":true}");
+      http.end();
+      
+      return cmd;
+    }
+  } else {
+    http.end();
+  }
+  return "";
+}
+
+// Relational Fetch: Gets crop_profiles data directly through the device relation!
+CropProfile fetchCropProfile() {
+  CropProfile profile = {DEFAULT_MOISTURE_LOW, DEFAULT_IRRIGATE_SEC, DEFAULT_RAIN_SKIP};
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  
+  String url = String(SUPABASE_URL) + "/rest/v1/devices?id=eq." + String(DEVICE_ID) + "&select=crop_profiles(moisture_threshold_low,irrigation_duration_s,weather_sensitivity)";
   http.begin(client, url);
   _addSupabaseHeaders(http);
 
@@ -105,7 +139,6 @@ CropProfile fetchCropProfile() {
       profile.moistureLow = doc[0]["crop_profiles"]["moisture_threshold_low"].as<int>();
       profile.irrigateSecs = doc[0]["crop_profiles"]["irrigation_duration_s"].as<int>();
       profile.rainSkipPct = doc[0]["crop_profiles"]["weather_sensitivity"].as<int>();
-      profile.pwmDuty = doc[0]["crop_profiles"]["pwm_duty"].as<int>();
     }
   }
   http.end();

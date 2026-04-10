@@ -1,6 +1,6 @@
 // esp32.ino
-// SISS v2 - PWM Pump Control Version
-// Uses D4184 MOSFET module for variable speed control
+// RootSync - Relay-based Pump Control
+// Uses relay module for ON/OFF pump control
 
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -15,8 +15,8 @@ DHT dht(PIN_DHT, DHT11);
 volatile long flowPulseCount = 0;
 void IRAM_ATTR flowISR() { flowPulseCount++; }
 
-// PWM helper — uses ESP32 Core 3.x ledcWrite API
-inline void setPumpPwm(int duty) { ledcWrite(PIN_PUMP_PWM, duty); }
+// Relay helper — uses digitalWrite for ON/OFF control
+inline void setPumpRelay(bool state) { digitalWrite(PIN_PUMP_RELAY, state ? HIGH : LOW); }
 
 // State
 CropProfile cropProfile;
@@ -24,7 +24,6 @@ bool pumpRunning = false;
 bool manualOverride = false;
 unsigned long manualStartMs = 0;
 long currentPumpLogId = -1;
-int currentPwmDuty = DEFAULT_PWM_DUTY;  // Current PWM setting (0-255)
 const unsigned long MANUAL_TIMEOUT_MS = 120000UL; // 2 minutes auto-off
 
 // Alert state
@@ -42,31 +41,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   JsonDocument doc;
   deserializeJson(doc, msg);
   String cmd = doc["command"].as<String>();
-  
-  // Extract PWM value if provided
-  int pwmValue = DEFAULT_PWM_DUTY;
-  if (doc["pwm"].is<int>()) {
-    pwmValue = doc["pwm"].as<int>();
-    currentPwmDuty = constrain(pwmValue, 0, 255);
-  }
-
-  // Handle PWM-only command (set speed without starting pump)
-  if (cmd == "set_pwm" && doc["value"].is<int>()) {
-    currentPwmDuty = constrain(doc["value"].as<int>(), 0, 255);
-    setPumpPwm(currentPwmDuty);
-    Serial.printf("[MQTT] PWM set to %d\n", currentPwmDuty);
-    return;
-  }
 
   // Pump ON command
-  if (cmd == "pump_on" && !pumpRunning) {
+  if (cmd == "on" && !pumpRunning) {
     manualOverride = true;
     pumpRunning = true;
     manualStartMs = millis();
     
-    // Use PWM control instead of relay
-    setPumpPwm(currentPwmDuty);
-    Serial.printf("[MQTT] Pump ON with PWM %d (~%d%%)\n", currentPwmDuty, (currentPwmDuty * 100) / 255);
+    setPumpRelay(true);
+    Serial.println("[MQTT] Pump ON");
     
     currentPumpLogId = postPumpLogStart(analogReadMoisture(), "manual");
 
@@ -74,17 +57,17 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     postAlert("pump_on", "Manual pump activated via app.");
   } 
   // Pump OFF command
-  else if (cmd == "pump_off") {
+  else if (cmd == "off") {
     if (pumpRunning && currentPumpLogId > 0) {
       unsigned long durationSecs = (millis() - manualStartMs) / 1000;
-      // Calculate actual water used based on PWM duty cycle
-      float waterUsed = (durationSecs / 60.0f) * (currentPwmDuty / 255.0f) * 0.5f;
+      // Water usage: assume 0.5 L/min at full speed
+      float waterUsed = (durationSecs / 60.0f) * 0.5f;
       patchPumpLogEnd(currentPumpLogId, analogReadMoisture(), durationSecs, waterUsed);
       currentPumpLogId = -1;
     }
     manualOverride = false;
     pumpRunning = false;
-    setPumpPwm(0);  // PWM 0 = pump OFF
+    setPumpRelay(false);
     Serial.println("[MQTT] Pump OFF");
 
     // Alert: manual pump stopped
@@ -167,32 +150,36 @@ void connectWiFi() {
   Serial.println("\n[WiFi] Connected!");
 }
 
+unsigned long lastMqttConnectAttempt = 0;
+
 void connectMQTT() {
   if (mqtt.connected()) return;
+  if (millis() - lastMqttConnectAttempt < 5000 && lastMqttConnectAttempt != 0) return;
+  lastMqttConnectAttempt = millis();
+
   tlsClient.setInsecure();
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   mqtt.setCallback(mqttCallback);
   
-  while (!mqtt.connected()) {
-    String clientId = "siss-esp32-" + String((uint32_t)ESP.getEfuseMac());
-    if (mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASSWORD)) {
-      mqtt.subscribe(MQTT_TOPIC_SUB);
-      Serial.println("[MQTT] Connected & Subscribed!");
-    } else {
-      delay(5000);
-    }
+  String clientId = "siss-esp32-" + String((uint32_t)ESP.getEfuseMac());
+  if (mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASSWORD)) {
+    mqtt.subscribe(MQTT_TOPIC_SUB);
+    Serial.println("[MQTT] Connected & Subscribed!");
+  } else {
+    Serial.print("[MQTT] Connect failed. rc=");
+    Serial.println(mqtt.state());
   }
 }
 
 void setup() {
   Serial.begin(115200);
   dht.begin();
-  ledcAttach(PIN_PUMP_PWM, 1000, 8);  // ESP32 Core 3.x API
+  pinMode(PIN_PUMP_RELAY, OUTPUT);
   pinMode(PIN_RAIN_SENSOR, INPUT);
   pinMode(PIN_SOIL_MOISTURE, INPUT);
   pinMode(PIN_FLOW_SENSOR, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_FLOW_SENSOR), flowISR, FALLING);
-  setPumpPwm(0);  // Ensure pump is off on boot
+  setPumpRelay(false);  // Ensure pump is off on boot
 
   // Run calibration mode if enabled
   if (CALIBRATION_MODE) {
@@ -205,10 +192,7 @@ void setup() {
   updateDeviceStatus("online");
   cropProfile = fetchCropProfile();
   
-  // Use PWM from crop profile if available, otherwise default
-  currentPwmDuty = (cropProfile.pwmDuty > 0) ? cropProfile.pwmDuty : DEFAULT_PWM_DUTY;
-  Serial.printf("[Boot] Ready. Moisture low=%d%%, PWM duty=%d (~%d%%)\n", 
-                cropProfile.moistureLow, currentPwmDuty, (currentPwmDuty * 100) / 255);
+  Serial.printf("[Boot] Ready. Moisture low=%d%%\n", cropProfile.moistureLow);
 }
 
 unsigned long lastRun = 0;
@@ -217,19 +201,21 @@ const unsigned long INTERVAL_MS = 5000UL; // 5 seconds
 void loop() {
   connectWiFi();
   connectMQTT();
-  mqtt.loop();
+  if (mqtt.connected()) {
+    mqtt.loop();
+  }
 
   // Manual Safety Timeout (2 mins)
   if (manualOverride && pumpRunning && (millis() - manualStartMs >= MANUAL_TIMEOUT_MS)) {
     if (currentPumpLogId > 0) {
       unsigned long durationSecs = (MANUAL_TIMEOUT_MS) / 1000;
-      float waterUsed = (durationSecs / 60.0f) * (currentPwmDuty / 255.0f) * 0.5f;
+      float waterUsed = (durationSecs / 60.0f) * 0.5f;
       patchPumpLogEnd(currentPumpLogId, analogReadMoisture(), durationSecs, waterUsed);
       currentPumpLogId = -1;
     }
     manualOverride = false;
     pumpRunning = false;
-    setPumpPwm(0);
+    setPumpRelay(false);
     Serial.println("[System] Pump auto-stopped after 2 mins");
 
     // Alert: pump stopped by safety limit
@@ -241,6 +227,30 @@ void loop() {
   if (millis() - lastRun >= INTERVAL_MS) {
     lastRun = millis();
 
+    // Check for commands from Supabase ALWAYS (fallback logic from app)
+    String cmd = fetchDeviceCommand();
+    if (cmd == "on" && !pumpRunning) {
+      manualOverride = true;
+      pumpRunning = true;
+      manualStartMs = millis();
+      setPumpRelay(true);
+      Serial.println("[Supabase] Pump ON");
+      currentPumpLogId = postPumpLogStart(analogReadMoisture(), "manual");
+      postAlert("pump_on", "Manual pump activated via app.");
+    } else if (cmd == "off" && pumpRunning) {
+      if (currentPumpLogId > 0) {
+        unsigned long durationSecs = (millis() - manualStartMs) / 1000;
+        float waterUsed = (durationSecs / 60.0f) * 0.5f;
+        patchPumpLogEnd(currentPumpLogId, analogReadMoisture(), durationSecs, waterUsed);
+        currentPumpLogId = -1;
+      }
+      manualOverride = false;
+      pumpRunning = false;
+      setPumpRelay(false);
+      Serial.println("[Supabase] Pump OFF");
+      postAlert("pump_off", "Manual pump stopped via app.");
+    }
+
     int moisture = analogReadMoisture();
     float temp = dht.readTemperature();
     float humidity = dht.readHumidity();
@@ -250,8 +260,8 @@ void loop() {
     flowPulseCount = 0;
     float flowLitres = (pulses / 7.5f / 60.0f) * (INTERVAL_MS / 1000.0f);
 
-    Serial.printf("[Sensor] Moist:%d%% Temp:%.1fC Hum:%.1f%% Rain:%d PWM:%d Flow:%.3fL\n", 
-                   moisture, temp, humidity, (int)rain, currentPwmDuty, flowLitres);
+    Serial.printf("[Sensor] Moist:%d%% Temp:%.1fC Hum:%.1f%% Rain:%d Flow:%.3fL\n", 
+                   moisture, temp, humidity, (int)rain, flowLitres);
 
     postSensorReading(moisture, temp, humidity, rain, flowLitres);
     updateDeviceStatus("online");
@@ -289,27 +299,25 @@ void loop() {
       if (!rain && moisture < cropProfile.moistureLow) {
         int rainPct = getRainForecastPct();
         if (rainPct < cropProfile.rainSkipPct) {
-          Serial.printf("[Auto] Soil dry & no rain expected. Starting pump at PWM %d...\n", currentPwmDuty);
+          Serial.println("[Auto] Soil dry & no rain expected. Starting pump...");
           
-          // Get PWM duty from crop profile, fallback to default
-          int autoPwmDuty = (cropProfile.pwmDuty > 0) ? cropProfile.pwmDuty : DEFAULT_PWM_DUTY;
           currentPumpLogId = postPumpLogStart(moisture, "auto");
 
           // Alert: auto irrigation started
           char onMsg[80];
           snprintf(onMsg, sizeof(onMsg),
-                   "Auto irrigation started — soil moisture at %d%%.", moisture);
+                   "Auto irrigation started — soil moisture at %d%.", moisture);
           postAlert("auto_irrigation_started", String(onMsg));
           Serial.println("[Alert] auto_irrigation_started sent");
 
           pumpRunning = true;
-          setPumpPwm(autoPwmDuty);  // PWM control
+          setPumpRelay(true);  // Pump ON
           delay((unsigned long)cropProfile.irrigateSecs * 1000UL); // Block for duration
-          setPumpPwm(0);  // PWM 0 = OFF
+          setPumpRelay(false);  // Pump OFF
           pumpRunning = false;
           
           int afterMoisture = analogReadMoisture();
-          float waterUsed = (cropProfile.irrigateSecs / 60.0f) * (autoPwmDuty / 255.0f) * 0.5f;
+          float waterUsed = (cropProfile.irrigateSecs / 60.0f) * 0.5f;
           patchPumpLogEnd(currentPumpLogId, afterMoisture, cropProfile.irrigateSecs, waterUsed);
           currentPumpLogId = -1;
 
